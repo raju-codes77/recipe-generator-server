@@ -13,3 +13,28 @@ model User {
   email     String   @unique
   createdAt DateTime @default(now())
 }
+
+model Recipe {
+  id           String       @id @default(uuid())
+  mealId       String       @unique
+  title        String
+  category     String?
+  cuisine      String?
+  rating       Float        @default(4.5)
+  time         Int          @default(30)
+  calories     Int          @default(400)
+  image        String?
+  instructions String?
+  youtube      String?
+  tabType      String       @default("All Recipes")
+  ingredients  Ingredient[]
+  createdAt    DateTime     @default(now())
+}
+
+model Ingredient {
+  id       Int    @id @default(autoincrement())
+  name     String
+  measure  String?
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+}
