@@ -146,3 +146,19 @@ model CollectionRecipe {
   @@index([collectionId])
   @@index([recipeId])
 }
+
+//pantry-to-plate AI
+model PantryRecipe {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  image        String
+  time         String
+  level        String
+  kcal         String
+  protein      String
+  whyChosen    String
+  ingredients  String[]
+  instructions String[]
+  createdAt    DateTime @default(now())
+}
