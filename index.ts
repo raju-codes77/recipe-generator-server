@@ -1,5 +1,9 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { PrismaClient } from "./generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import recipeMatcherRoute from "./routes/recipeMatcher.route";
 import dotenv from "dotenv";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./src/lib/auth";
@@ -13,6 +17,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Middleware
+app.use(express.json());
+app.use(cors());
 // cors
 app.use(
   cors({
@@ -51,6 +58,9 @@ app.get("/db-test", async (req, res) => {
     });
   }
 });
+
+// Recipe matcher AI routes → mounted under /api
+app.use("/api", recipeMatcherRoute);
 
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
