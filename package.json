@@ -15,17 +15,18 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
+    "@better-auth/prisma-adapter": "^1.7.1",
     "@google/genai": "^2.18.0",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
-    "@better-auth/prisma-adapter": "^1.7.1",
-    "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
+    "@supabase/supabase-js": "^2.112.4",
+    "@types/multer": "^2.2.0",
     "better-auth": "^1.7.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "groq-sdk": "^1.5.0",
+    "multer": "^2.2.0",
     "pg": "^8.23.0"
   },
   "devDependencies": {

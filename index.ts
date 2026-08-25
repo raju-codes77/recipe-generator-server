@@ -8,6 +8,8 @@ import dotenv from "dotenv";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./src/lib/auth";
 import { prisma } from "./src/lib/prisma";
+import multer from "multer";
+import { analyzeMeal } from "./src/services/meal-analyze.service";
 
 // Import Recipe Routes
 import recipeRoutes from "./src/recipe/recipe.routes";
@@ -16,10 +18,10 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Middleware
 app.use(express.json());
-app.use(cors());
 // cors
 app.use(
   cors({
@@ -33,6 +35,42 @@ app.all("/api/auth/*splat", toNodeHandler(auth));
 
 // Other routes
 app.use(express.json());
+
+// ================= MEAL ANALYSIS ROUTE =================
+
+app.post(
+  "/api/meals/analyze",
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      // Check if image was uploaded
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "Meal image is required",
+        });
+      }
+
+      // Send image to Gemini for food analysis
+      const result = await analyzeMeal({
+        buffer: req.file.buffer,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+      });
+
+      // Return analysis result to client
+      return res.status(200).json(result);
+    } catch (error: any) {
+      console.error("Meal Analysis Error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Failed to analyze meal image",
+        error: error.message,
+      });
+    }
+  }
+);
 
 app.get("/", (req, res) => {
   res.send("Server is running");
