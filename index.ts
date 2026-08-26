@@ -13,6 +13,7 @@ import { analyzeMeal } from "./src/services/meal-analyze.service";
 
 // Import Recipe Routes
 import recipeRoutes from "./src/recipe/recipe.routes";
+import communityRoutes from "./src/community/community.routes";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ const PORT = process.env.PORT || 5000;
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Middleware
+app.use("/api/community", express.json({ limit: "10mb" }));
 app.use(express.json());
 // cors
 app.use(
@@ -32,6 +34,8 @@ app.use(
 
 // Better Auth MUST come before express.json()
 app.all("/api/auth/*splat", toNodeHandler(auth));
+
+app.use("/api/community", communityRoutes);
 
 // Other routes
 app.use(express.json());
