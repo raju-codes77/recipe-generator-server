@@ -1,4 +1,4 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { PrismaClient } from "./generated/prisma/client";
@@ -13,6 +13,7 @@ import { analyzeMeal } from "./src/services/meal-analyze.service";
 
 // Import Recipe Routes
 import recipeRoutes from "./src/recipe/recipe.routes";
+import userRoutes from "./src/routes/user.routes";
 
 dotenv.config();
 
@@ -97,7 +98,8 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-// Recipe matcher AI routes → mounted under /api
+// Recipe matcher AI routes â†’ mounted under /api
+app.use("/api/users", userRoutes);
 app.use("/api", recipeMatcherRoute);
 
 app.listen(PORT, () => {
