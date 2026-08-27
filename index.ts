@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { PrismaClient } from "./generated/prisma/client";
@@ -14,6 +14,7 @@ import { analyzeMeal } from "./src/services/meal-analyze.service";
 // Import Recipe Routes
 import recipeRoutes from "./src/recipe/recipe.routes";
 import userRoutes from "./src/routes/user.routes";
+import communityRoutes from "./src/community/community.routes";
 
 dotenv.config();
 
