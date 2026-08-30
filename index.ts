@@ -28,7 +28,7 @@ app.use(express.json());
 // cors
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "https://food-canvas.vercel.app"],
     credentials: true,
   })
 );
@@ -106,6 +106,10 @@ app.get("/db-test", async (req, res) => {
 app.use("/api/users", userRoutes);
 app.use("/api", recipeMatcherRoute);
 
-app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server started on port ${PORT}`);
+  });
+}
+
+module.exports = app;

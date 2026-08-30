@@ -5,10 +5,20 @@ import { prisma } from "./prisma";
 export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3000",
+    "https://food-canvas.vercel.app"
   ],
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
+  advanced: {
+    crossSubDomainCookies: {
+      enabled: true,
+    },
+    defaultCookieAttributes: {
+      sameSite: "none",
+      secure: true,
+    }
+  },
   emailAndPassword: {
     enabled: true,
   },
