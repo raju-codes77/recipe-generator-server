@@ -31,13 +31,10 @@ export const analyzeMeal = async ({
   const base64Image = buffer.toString("base64");
 
   // Tell Gemini how to analyze the image
-  const prompt = `
+const prompt = `
 You are a food and nutrition analysis assistant.
 
-Analyze the uploaded image.
-
-First determine whether the image contains FOOD.
-
+Analyze the uploaded image. First determine whether the image contains FOOD.
 If it is NOT food, return ONLY this JSON:
 {
   "isFood": false,
@@ -45,48 +42,43 @@ If it is NOT food, return ONLY this JSON:
 }
 
 If it IS food, identify the visible food items and estimate the nutrition.
-
 Return ONLY valid JSON in this exact structure:
 {
   "isFood": true,
   "message": "Food detected successfully.",
-  "confidenceScore": 0,
-  "detectedFoods": [
-    {
-      "name": "",
-      "portion": "",
-      "emoji": ""
-    }
+  "foodName": "Name of the meal",
+  "tag": "e.g., Healthy choice, High protein",
+  "detectedItems": [
+    { "name": "Ingredient 1", "icon": "meat|avocado|apple|seed|leaf|default" }
   ],
-  "nutritionFacts": {
-    "kcal": 0,
-    "protein": 0,
-    "carbs": 0,
-    "fat": 0,
-    "fiber": 0,
-    "sugar": 0,
-    "sodium": 0,
-    "cholesterol": 0
-  },
-  "mealName": "",
-  "category": "",
-  "insightHeading": "",
-  "insightMessage": "",
-  "tips": [
-    {
-      "emoji": "",
-      "tip": ""
-    }
+  "confidenceScore": 92,
+  "calories": 500,
+  "macros": [
+    { "label": "Protein", "grams": 40, "percent": 30, "color": "success|warning|pro" },
+    { "label": "Carbs", "grams": 50, "percent": 40, "color": "success|warning|pro" },
+    { "label": "Fat", "grams": 15, "percent": 30, "color": "success|warning|pro" }
+  ],
+  "micros": [
+    { "label": "Fiber", "value": "8g", "color": "success|warning|accent" },
+    { "label": "Sugar", "value": "6g", "color": "success|warning|accent" },
+    { "label": "Sodium", "value": "600mg", "color": "success|warning|accent" }
+  ],
+  "healthScore": 8.5,
+  "healthScoreLabel": "Very good",
+  "scoreBreakdown": [
+    { "label": "Nutrient balance", "value": 8.6 }
+  ],
+  "insights": [
+    { "title": "Insight 1", "description": "...", "icon": "meat|cactus|scale" }
+  ],
+  "recommendations": [
+    { "title": "Tip 1", "description": "...", "icon": "leaf|avocado|droplet" }
   ]
 }
 
 Rules:
-- confidenceScore must be between 0 and 100.
-- Nutrition values should be reasonable estimates.
-- kcal, protein, carbs, fat, fiber, sugar, sodium and cholesterol must be numbers.
-- Do not invent foods that are not reasonably visible.
-- If the image is unclear or does not contain food, set isFood to false.
-- Return JSON only. No markdown. No explanation outside JSON.
+- Make sure macros percentages roughly sum up to 100.
+- Return ONLY JSON. No markdown formatting or extra text.
 `;
 
   // Send the image and prompt to Gemini
