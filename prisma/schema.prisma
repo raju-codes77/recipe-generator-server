@@ -1,6 +1,7 @@
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
@@ -22,6 +23,8 @@ model User {
   favorites    Favorite[]
   recipes      Recipe[]
   collections  Collection[]
+  goal         UserGoal?
+  dailyEntries DailyEntry[]
 }
 
 model Session {
@@ -39,7 +42,7 @@ model Session {
 }
 
 model Account {
-  id                    String   @id @default(cuid())
+  id                    String    @id @default(cuid())
   accountId             String
   providerId            String
   userId                String
@@ -68,9 +71,10 @@ model Verification {
 
   @@index([identifier])
 }
+
 model Recipe {
   id           String   @id @default(cuid())
-  mealId       String?  @unique 
+  mealId       String?  @unique
   title        String
   category     String?
   cuisine      String?
@@ -83,8 +87,8 @@ model Recipe {
   tabType      String   @default("All Recipes")
   createdAt    DateTime @default(now())
 
-  userId String? 
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade) // এখানে User? করা হয়েছে
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   ingredients       Ingredient[]
   favorites         Favorite[]
@@ -114,17 +118,17 @@ model Favorite {
   @@unique([userId, recipeId])
 }
 
-//  NEW COLLECTION MODELS 
+// NEW COLLECTION MODELS
 
 model Collection {
   id        String   @id @default(cuid())
-  name      String   
+  name      String
   userId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recipes   CollectionRecipe[]
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipes CollectionRecipe[]
 
   @@index([userId])
 }
@@ -142,6 +146,33 @@ model CollectionRecipe {
   @@index([collectionId])
   @@index([recipeId])
 }
+
+model UserGoal {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  dailyKcal    Int      @default(2000)
+  dailyProtein Int      @default(150)
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DailyEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String
+  kcal      Int      @default(0)
+  protein   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+// =================== COMMUNITY MODELS ===================
 
 model CommunityPost {
   id               String   @id @default(cuid())
@@ -188,18 +219,18 @@ model CommunityReaction {
 }
 
 model CommunityReview {
-  id                   String   @id @default(cuid())
-  postId               String
-  userId               String
-  rating               Int
-  flavorRating         Int?
-  easeRating           Int?
-  presentationRating   Int?
-  comment              String
-  cookingTips          String?
-  madeItPhoto          String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  postId             String
+  userId             String
+  rating             Int
+  flavorRating       Int?
+  easeRating         Int?
+  presentationRating Int?
+  comment            String
+  cookingTips        String?
+  madeItPhoto        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@unique([postId, userId])
   @@index([userId])
@@ -270,11 +301,11 @@ model CommunityConversation {
 }
 
 model CommunityConversationMember {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   conversationId String
   userId         String
   lastReadAt     DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   @@unique([conversationId, userId])
   @@index([userId])
