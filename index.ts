@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { PrismaClient } from "./generated/prisma/client";
@@ -14,6 +14,7 @@ import { analyzeMeal } from "./src/services/meal-analyze.service";
 // Import Recipe Routes
 import recipeRoutes from "./src/recipe/recipe.routes";
 import userRoutes from "./src/routes/user.routes";
+import communityRoutes from "./src/community/community.routes";
 
 dotenv.config();
 
@@ -27,7 +28,7 @@ app.use(express.json());
 // cors
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "https://food-canvas.vercel.app"],
     credentials: true,
   })
 );
@@ -105,6 +106,10 @@ app.get("/db-test", async (req, res) => {
 app.use("/api/users", userRoutes);
 app.use("/api", recipeMatcherRoute);
 
-app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server started on port ${PORT}`);
+  });
+}
+
+module.exports = app;
