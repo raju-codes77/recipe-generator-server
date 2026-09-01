@@ -17,7 +17,29 @@ const param = (value: string | string[]): string => (Array.isArray(value) ? valu
 export const communityController = {
   listPosts: handle(async (req, res) => {
     const user = await getOptionalCommunityUser(req);
-    res.json({ posts: await communityService.listPosts(user?.id) });
+    const rawTake = Number(req.query.take);
+    const rawSkip = Number(req.query.skip);
+    res.json({
+      posts: await communityService.listPosts(user?.id, {
+        take: Number.isFinite(rawTake) ? rawTake : undefined,
+        skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+      }),
+    });
+  }),
+
+  getPostInteractions: handle(async (req, res) => {
+    const parseQueryNumber = (value: unknown) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+    res.json({
+      interactions: await communityService.getPostInteractions(param(req.params.postId), {
+        commentsTake: parseQueryNumber(req.query.commentsTake),
+        commentsSkip: parseQueryNumber(req.query.commentsSkip),
+        reviewsTake: parseQueryNumber(req.query.reviewsTake),
+        reviewsSkip: parseQueryNumber(req.query.reviewsSkip),
+      }),
+    });
   }),
 
   createPost: handle(async (req, res) => {

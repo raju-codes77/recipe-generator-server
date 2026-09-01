@@ -5,6 +5,7 @@ const router = Router();
 router.use(json({ limit: "9mb" }));
 
 router.get("/posts", communityController.listPosts);
+router.get("/posts/:postId/interactions", communityController.getPostInteractions);
 router.post("/posts", communityController.createPost);
 router.patch("/posts/:postId", communityController.updatePost);
 router.delete("/posts/:postId", communityController.deletePost);
