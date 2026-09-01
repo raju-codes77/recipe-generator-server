@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "../recipe-generator-client"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {}
+}
