@@ -219,9 +219,16 @@ export const communityController = {
 
   listMessages: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
+    const parseQueryNumber = (value: unknown) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
 
     res.json({
-      messages: await communityService.listMessages(user.id, param(req.params.userId)),
+      ...(await communityService.listMessages(user.id, param(req.params.userId), {
+        take: parseQueryNumber(req.query.take),
+        skip: parseQueryNumber(req.query.skip),
+      })),
     });
   }),
 

@@ -606,16 +606,26 @@ export class CommunityService {
       });
   }
 
-  async listMessages(userId: string, otherUserId: string) {
+  async listMessages(userId: string, otherUserId: string, options: { take?: number; skip?: number } = {}) {
     const pairKey = [userId, otherUserId].sort().join(":");
     const conversation = await prisma.communityConversation.findUnique({ where: { pairKey } });
-    if (!conversation) return [];
-    const messages = await prisma.communityMessage.findMany({
+    if (!conversation) return { messages: [], hasMore: false };
+
+    const take = Math.min(Math.max(options.take ?? 20, 1), 50);
+    const skip = Math.max(options.skip ?? 0, 0);
+    const result = await prisma.communityMessage.findMany({
       where: { conversationId: conversation.id },
-      orderBy: { createdAt: "asc" },
-      take: 200,
+      orderBy: { createdAt: "desc" },
+      take: take + 1,
+      skip,
     });
-    return messages.map((message) => ({ ...message, timestamp: timeAgo(message.createdAt) }));
+    const hasMore = result.length > take;
+    const messages = result
+      .slice(0, take)
+      .reverse()
+      .map((message) => ({ ...message, timestamp: timeAgo(message.createdAt) }));
+
+    return { messages, hasMore };
   }
 
   async sendMessage(userId: string, recipientId: string, text: string, attachedPostId?: string) {
