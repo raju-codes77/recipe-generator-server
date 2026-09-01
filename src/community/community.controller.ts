@@ -123,6 +123,11 @@ export const communityController = {
     res.json(await communityService.toggleFollow(user.id, param(req.params.userId)));
   }),
 
+  getPublicProfile: handle(async (req, res) => {
+    const viewer = await getOptionalCommunityUser(req);
+    res.json({ profile: await communityService.getPublicProfile(param(req.params.userId), viewer?.id) });
+  }),
+
   listCollections: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
     res.json({ collections: await communityService.listCollections(user.id) });

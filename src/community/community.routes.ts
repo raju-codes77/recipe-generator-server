@@ -17,6 +17,7 @@ router.post("/posts/:postId/reviews", communityController.saveReview);
 router.delete("/posts/:postId/reviews", communityController.deleteReview);
 router.post("/posts/:postId/save", communityController.savePost);
 router.post("/posts/:postId/reports", communityController.reportPost);
+router.get("/users/:userId/profile", communityController.getPublicProfile);
 router.post("/users/:userId/follow", communityController.toggleFollow);
 router.get("/collections", communityController.listCollections);
 router.post("/collections", communityController.createCollection);

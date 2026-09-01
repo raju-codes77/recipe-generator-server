@@ -158,6 +158,42 @@ export class CommunityService {
     });
   }
 
+  async getPublicProfile(userId: string, viewerId?: string | null) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw Object.assign(new Error("Community user not found"), { statusCode: 404 });
+
+    const [posts, stories, followersCount, followingCount, following] = await Promise.all([
+      this.listPosts(viewerId),
+      this.listStories(),
+      prisma.communityFollow.count({ where: { followingId: userId } }),
+      prisma.communityFollow.count({ where: { followerId: userId } }),
+      viewerId
+        ? prisma.communityFollow.findUnique({
+            where: { followerId_followingId: { followerId: viewerId, followingId: userId } },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    const userPosts = posts.filter((post) => post.author.id === userId);
+    const userStories = stories.filter((story) => story.author.id === userId);
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        username: (user.email.split("@")[0] || "community_cook").replace(/[^a-zA-Z0-9_]/g, "_"),
+        avatar: user.image || "",
+        role: "user" as const,
+        followersCount,
+        isFollowing: Boolean(following),
+        recipesCount: userPosts.filter((post) => post.recipe).length,
+      },
+      posts: userPosts,
+      stories: userStories,
+      followingCount,
+    };
+  }
+
   async createPost(user: AuthenticatedCommunityUser, input: CreateCommunityPostInput) {
     await prisma.$transaction(async (tx) => {
       let recipeId: string | undefined;
