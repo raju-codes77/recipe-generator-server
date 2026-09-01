@@ -557,8 +557,23 @@ export class CommunityService {
     return prisma.communityNotification.updateMany({ where: { id: notificationId, userId }, data: { read: true } });
   }
 
-  async listContacts(userId: string) {
-    const users = await prisma.user.findMany({ where: { id: { not: userId } }, orderBy: { name: "asc" }, take: 50 });
+  async listContacts(userId: string, includeUserId?: string) {
+    const followedUsers = await prisma.communityFollow.findMany({
+      where: { followerId: userId },
+      select: { followingId: true },
+    });
+    const contactIds = new Set(followedUsers.map((follow) => follow.followingId));
+
+    // A direct-message action from a post may target someone the viewer does not follow yet.
+    // Include only that intentional recipient; the normal list remains limited to followed cooks.
+    if (includeUserId && includeUserId !== userId) contactIds.add(includeUserId);
+    if (contactIds.size === 0) return [];
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: [...contactIds] } },
+      orderBy: { name: "asc" },
+      take: 50,
+    });
     const userIds = users.map((user) => user.id);
     const messages = userIds.length
       ? await prisma.communityMessage.findMany({

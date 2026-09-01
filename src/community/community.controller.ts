@@ -213,7 +213,8 @@ export const communityController = {
 
   listContacts: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
-    res.json({ contacts: await communityService.listContacts(user.id) });
+    const includeUserId = typeof req.query.includeUserId === "string" ? req.query.includeUserId : undefined;
+    res.json({ contacts: await communityService.listContacts(user.id, includeUserId) });
   }),
 
   listMessages: handle(async (req, res) => {
