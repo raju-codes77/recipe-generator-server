@@ -1,8 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { PrismaClient } from "./generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
 import recipeMatcherRoute from "./routes/recipeMatcher.route";
 import dotenv from "dotenv";
 import { toNodeHandler } from "better-auth/node";
