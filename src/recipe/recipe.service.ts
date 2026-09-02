@@ -23,10 +23,11 @@ export const RecipeService = {
   },
 
   // filtering and sorting recipes
-  async findRecipes(whereClause: any, orderByObj: any) {
+  async findRecipes(whereClause: any, orderByObj: any, limit?: number) {
     return await prisma.recipe.findMany({
       where: whereClause,
       orderBy: orderByObj,
+      ...(limit ? { take: limit } : {}),
       include: {
         ingredients: true,
         user: true,

@@ -5,7 +5,8 @@ export const RecipeController = {
   // Recipes Get Handler
   async getRecipes(req: Request, res: Response) {
     try {
-      const { search, category, cuisine, maxTime, maxCalories, minRating, sortBy, tab, userId } = req.query;
+      // 1. 'limit' add 
+      const { search, category, cuisine, maxTime, maxCalories, minRating, sortBy, tab, userId, excludeId, limit } = req.query;
 
       const count = await RecipeService.getRecipeCount();
       if (count === 0) {
@@ -60,7 +61,12 @@ export const RecipeController = {
       }
 
       if (category && category !== "All") {
-        conditions.push({ category: { equals: String(category), mode: "insensitive" } });
+        conditions.push({ 
+          category: { 
+            equals: String(category).trim(), 
+            mode: "insensitive" 
+          } 
+        });
       }
 
       if (cuisine && cuisine !== "All") {
@@ -70,6 +76,10 @@ export const RecipeController = {
       if (maxTime) conditions.push({ time: { lte: Number(maxTime) } });
       if (maxCalories) conditions.push({ calories: { lte: Number(maxCalories) } });
       if (minRating) conditions.push({ rating: { gte: Number(minRating) } });
+
+      if (excludeId) {
+        conditions.push({ id: { not: String(excludeId) } });
+      }
 
       const whereClause = conditions.length > 0 ? { AND: conditions } : {};
 
@@ -87,7 +97,12 @@ export const RecipeController = {
       const orderByObj: any = {};
       orderByObj[sortByField] = sortOrder;
 
-      const recipes = await RecipeService.findRecipes(whereClause, orderByObj);
+      // 2.  findRecipes-e limit 
+      const recipes = await RecipeService.findRecipes(
+        whereClause, 
+        orderByObj, 
+        limit ? Number(limit) : undefined
+      );
 
       res.json({
         success: true,
@@ -104,7 +119,6 @@ export const RecipeController = {
       });
     }
   },
-
   // Single Recipe Get Handler 
   async getRecipeById(req: Request, res: Response) {
     try {
