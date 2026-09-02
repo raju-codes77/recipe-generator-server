@@ -5,6 +5,7 @@ const router = Router();
 router.use(json({ limit: "9mb" }));
 
 router.get("/posts", communityController.listPosts);
+router.get("/posts/:postId/interactions", communityController.getPostInteractions);
 router.post("/posts", communityController.createPost);
 router.patch("/posts/:postId", communityController.updatePost);
 router.delete("/posts/:postId", communityController.deletePost);
@@ -17,6 +18,7 @@ router.post("/posts/:postId/reviews", communityController.saveReview);
 router.delete("/posts/:postId/reviews", communityController.deleteReview);
 router.post("/posts/:postId/save", communityController.savePost);
 router.post("/posts/:postId/reports", communityController.reportPost);
+router.get("/users/:userId/profile", communityController.getPublicProfile);
 router.post("/users/:userId/follow", communityController.toggleFollow);
 router.get("/collections", communityController.listCollections);
 router.post("/collections", communityController.createCollection);
