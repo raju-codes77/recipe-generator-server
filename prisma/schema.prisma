@@ -9,14 +9,14 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String       @id @default(cuid())
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String       @unique
+  emailVerified Boolean      @default(false)
   image         String?
-  role          String?   @default("user")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  role          String?      @default("user")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   sessions     Session[]
   accounts     Account[]
@@ -28,15 +28,15 @@ model User {
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  expiresAt    DateTime
-  token        String   @unique
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  ipAddress    String?
-  userAgent    String?
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -45,8 +45,8 @@ model Account {
   id                    String    @id @default(cuid())
   accountId             String
   providerId            String
+  issuer                String?
   userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -54,9 +54,9 @@ model Account {
   refreshTokenExpiresAt DateTime?
   scope                 String?
   password              String?
-  issuer                String?   // <--- Ei field-ta add koro
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -73,26 +73,24 @@ model Verification {
 }
 
 model Recipe {
-  id           String   @id @default(cuid())
-  mealId       String?  @unique
-  title        String
-  category     String?
-  cuisine      String?
-  rating       Float    @default(4.5)
-  time         Int      @default(30)
-  calories     Int      @default(400)
-  image        String?
-  instructions String?
-  youtube      String?
-  tabType      String   @default("All Recipes")
-  createdAt    DateTime @default(now())
-
-  userId String?
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  ingredients       Ingredient[]
-  favorites         Favorite[]
+  id                String             @id @default(cuid())
+  mealId            String?            @unique
+  title             String
+  category          String?
+  cuisine           String?
+  rating            Float              @default(4.5)
+  time              Int                @default(30)
+  calories          Int                @default(400)
+  image             String?
+  instructions      String?
+  youtube           String?
+  tabType           String             @default("All Recipes")
+  createdAt         DateTime           @default(now())
+  userId            String?
   collectionRecipes CollectionRecipe[]
+  favorites         Favorite[]
+  ingredients       Ingredient[]
+  user              User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -102,8 +100,7 @@ model Ingredient {
   name     String
   measure  String?
   recipeId String
-
-  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  recipe   Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 }
 
 model Favorite {
@@ -111,36 +108,31 @@ model Favorite {
   userId    String
   recipeId  String
   createdAt DateTime @default(now())
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  recipe    Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, recipeId])
 }
 
-// NEW COLLECTION MODELS
-
 model Collection {
-  id        String   @id @default(cuid())
+  id        String             @id @default(cuid())
   name      String
   userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recipes CollectionRecipe[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipes   CollectionRecipe[]
 
   @@index([userId])
 }
 
 model CollectionRecipe {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   collectionId String
   recipeId     String
-  createdAt    DateTime @default(now())
-
-  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  recipe     Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   @@unique([collectionId, recipeId])
   @@index([collectionId])
@@ -349,4 +341,29 @@ model CommunityNotification {
   createdAt    DateTime @default(now())
 
   @@index([userId, read, createdAt])
+}
+
+// =================== PANTRY TO PLATE MODEL ===================
+
+model PantryRecipe {
+  id              String   @id @default(uuid())
+  title           String
+  description     String
+  image           String
+  time            String
+  level           String
+  kcal            String
+  protein         String
+  whyChosen       String
+  ingredients     Json
+  instructions    Json
+  cuisine         String
+  mealType        String
+  cookingTime     String
+  diet            String
+  servings        String
+  selectedOptions Json
+  userId          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
