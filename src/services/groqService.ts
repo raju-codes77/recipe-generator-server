@@ -1,4 +1,4 @@
-import { groqClient, GROQ_MODEL } from "../config/groq";
+import { groqClient, getGroqModel } from "../config/groq";
 import { getRecipeImageUrl } from "../utils/image";
 
 export interface GenerateInput {
@@ -84,7 +84,7 @@ Rules:
 
 export async function generateRecipe(input: GenerateInput): Promise<FormattedRecipe> {
   const completion = await groqClient.chat.completions.create({
-    model: GROQ_MODEL,
+    model: getGroqModel(),
     messages: [
       { role: "system", content: "You always respond with valid raw JSON only." },
       { role: "user", content: generatePrompt(input) },
@@ -135,7 +135,7 @@ Respond with ONLY the updated raw JSON, same schema:
 }`;
 
   const completion = await groqClient.chat.completions.create({
-    model: GROQ_MODEL,
+    model: getGroqModel(),
     messages: [
       { role: "system", content: "You always respond with valid raw JSON only." },
       { role: "user", content: prompt },

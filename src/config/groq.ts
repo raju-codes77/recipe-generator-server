@@ -1,11 +1,15 @@
 import Groq from "groq-sdk";
 
-if (!process.env.GROQ_API_KEY_PLATE_AI) {
-  throw new Error("GROQ_API_KEY_PLATE_AI is missing in .env");
+const apiKey = process.env.GROQ_API_KEY_PLATE_AI || process.env.GROQ_API_KEY || "";
+
+if (!apiKey) {
+  console.warn("Warning: Neither GROQ_API_KEY_PLATE_AI nor GROQ_API_KEY is defined in environment variables.");
 }
 
 export const groqClient = new Groq({
-  apiKey: process.env.GROQ_API_KEY_PLATE_AI,
+  apiKey: apiKey,
 });
 
-export const GROQ_MODEL = process.env.GROQ_MODEL_PLATE_AI || "groq/compound";
+export const getGroqModel = () => process.env.GROQ_MODEL_PLATE_AI || process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+export const GROQ_MODEL = getGroqModel();
+

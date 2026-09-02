@@ -17,6 +17,7 @@ import communityRoutes from "./src/community/community.routes";
 
 // Import Pantry-to-Plate Routes
 import pantryRoutes from "./routes/pantryRoutes";
+import multer from "multer";
 
 dotenv.config();
 

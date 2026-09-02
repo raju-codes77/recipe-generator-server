@@ -45,7 +45,7 @@ model Account {
   id                    String    @id @default(cuid())
   accountId             String
   providerId            String
-  issuer                String
+  issuer                String?
   userId                String
   accessToken           String?
   refreshToken          String?
@@ -58,7 +58,6 @@ model Account {
   updatedAt             DateTime  @updatedAt
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([issuer, accountId])
   @@index([userId])
 }
 
@@ -72,26 +71,22 @@ model Verification {
 
   @@index([identifier])
 }
+
 model Recipe {
-  id           String   @id @default(cuid())
-  mealId       String?  @unique 
-  title        String
-  category     String?
-  cuisine      String?
-  rating       Float    @default(4.5)
-  time         Int      @default(30)
-  calories     Int      @default(400)
-  image        String?
-  instructions String?
-  youtube      String?
-  tabType      String   @default("All Recipes")
-  createdAt    DateTime @default(now())
-
-  userId String? 
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade) // এখানে User? করা হয়েছে
-
-  ingredients       Ingredient[]
-  favorites         Favorite[]
+  id                String             @id @default(cuid())
+  mealId            String?            @unique
+  title             String
+  category          String?
+  cuisine           String?
+  rating            Float              @default(4.5)
+  time              Int                @default(30)
+  calories          Int                @default(400)
+  image             String?
+  instructions      String?
+  youtube           String?
+  tabType           String             @default("All Recipes")
+  createdAt         DateTime           @default(now())
+  userId            String?
   collectionRecipes CollectionRecipe[]
   favorites         Favorite[]
   ingredients       Ingredient[]
@@ -119,18 +114,14 @@ model Favorite {
   @@unique([userId, recipeId])
 }
 
-//  NEW COLLECTION MODELS 
-
 model Collection {
-  id        String   @id @default(cuid())
-  name      String   
+  id        String             @id @default(cuid())
+  name      String
   userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
   user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   recipes   CollectionRecipe[]
->>>>>>> theirs
 
   @@index([userId])
 }
@@ -147,6 +138,7 @@ model CollectionRecipe {
   @@index([collectionId])
   @@index([recipeId])
 }
+
 model UserGoal {
   id           String   @id @default(cuid())
   userId       String   @unique
@@ -170,4 +162,208 @@ model DailyEntry {
 
   @@unique([userId, date])
   @@index([userId])
+}
+
+// =================== COMMUNITY MODELS ===================
+
+model CommunityPost {
+  id               String   @id @default(cuid())
+  authorId         String
+  caption          String
+  imageUrl         String
+  additionalImages Json?
+  recipeId         String?
+  tags             String[]
+  isChallengeEntry Boolean  @default(false)
+  challengeName    String?
+  isPinned         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([recipeId])
+  @@index([createdAt])
+}
+
+model CommunityComment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  parentId  String?
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId, createdAt])
+  @@index([userId])
+  @@index([parentId])
+}
+
+model CommunityReaction {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  type      String   @default("LIKE")
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId, type])
+  @@index([userId])
+}
+
+model CommunityReview {
+  id                 String   @id @default(cuid())
+  postId             String
+  userId             String
+  rating             Int
+  flavorRating       Int?
+  easeRating         Int?
+  presentationRating Int?
+  comment            String
+  cookingTips        String?
+  madeItPhoto        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model CommunitySavedPost {
+  id           String   @id @default(cuid())
+  postId       String
+  userId       String
+  collectionId String?
+  createdAt    DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([collectionId])
+}
+
+model CommunityCollection {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  coverImage  String?
+  isPrivate   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model CommunityFollow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+model CommunityMadeIt {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model CommunityStory {
+  id        String   @id @default(cuid())
+  authorId  String
+  imageUrl  String
+  caption   String
+  tag       String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([authorId])
+  @@index([expiresAt])
+}
+
+model CommunityConversation {
+  id        String   @id @default(cuid())
+  pairKey   String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CommunityConversationMember {
+  id             String    @id @default(cuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model CommunityMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  recipientId    String
+  text           String
+  attachedPostId String?
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([recipientId, createdAt])
+}
+
+model CommunityReport {
+  id         String   @id @default(cuid())
+  postId     String
+  reporterId String
+  reason     String
+  details    String?
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([postId, reporterId])
+  @@index([status, createdAt])
+}
+
+model CommunityNotification {
+  id           String   @id @default(cuid())
+  userId       String
+  actorId      String
+  type         String
+  text         String
+  targetPostId String?
+  read         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([userId, read, createdAt])
+}
+
+// =================== PANTRY TO PLATE MODEL ===================
+
+model PantryRecipe {
+  id              String   @id @default(uuid())
+  title           String
+  description     String
+  image           String
+  time            String
+  level           String
+  kcal            String
+  protein         String
+  whyChosen       String
+  ingredients     Json
+  instructions    Json
+  cuisine         String
+  mealType        String
+  cookingTime     String
+  diet            String
+  servings        String
+  selectedOptions Json
+  userId          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
