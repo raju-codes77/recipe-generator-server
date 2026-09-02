@@ -14,10 +14,9 @@ model User {
   email         String       @unique
   emailVerified Boolean      @default(false)
   image         String?
-<<<<<<< HEAD
-  role          String?   @default("user")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  role          String?      @default("user")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   sessions     Session[]
   accounts     Account[]
@@ -26,18 +25,6 @@ model User {
   collections  Collection[]
   goal         UserGoal?
   dailyEntries DailyEntry[]
-=======
-  role          String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  accounts      Account[]
-  collections   Collection[]
-  DailyEntry    DailyEntry[]
-  favorites     Favorite[]
-  recipes       Recipe[]
-  sessions      Session[]
-  UserGoal      UserGoal?
->>>>>>> cd60544 (add plant ai or nutrition analizer server site)
 }
 
 model Session {
@@ -187,11 +174,7 @@ model CollectionRecipe {
   @@index([collectionId])
   @@index([recipeId])
 }
-<<<<<<< ours
-
-=======
 <<<<<<< HEAD
->>>>>>> theirs
 model UserGoal {
   id           String   @id @default(cuid())
   userId       String   @unique
@@ -204,48 +187,55 @@ model UserGoal {
 
 model DailyEntry {
   id        String   @id @default(cuid())
-=======
+  userId    String
+  date      String
+  kcal      Int      @default(0)
+  protein   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
 model CommunityCollection {
-  id          String   @id
+  id          String   @id @default(cuid())
   userId      String
   name        String
   description String?
   coverImage  String?
   isPrivate   Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime @updatedAt
 
   @@index([userId])
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model CommunityComment {
-  id        String   @id
+  id        String   @id @default(cuid())
   postId    String
   userId    String
   parentId  String?
   content   String
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
 
   @@index([parentId])
   @@index([postId, createdAt])
   @@index([userId])
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model CommunityConversation {
-  id        String   @id
+  id        String   @id @default(cuid())
   pairKey   String   @unique
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model CommunityConversationMember {
-  id             String    @id
+  id             String    @id @default(cuid())
   conversationId String
   userId         String
   lastReadAt     DateTime?
@@ -255,9 +245,8 @@ model CommunityConversationMember {
   @@index([userId])
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model CommunityFollow {
-  id          String   @id
+  id          String   @id @default(cuid())
   followerId  String
   followingId String
   createdAt   DateTime @default(now())
@@ -266,9 +255,8 @@ model CommunityFollow {
   @@index([followingId])
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model CommunityMadeIt {
-  id        String   @id
+  id        String   @id @default(cuid())
   postId    String
   userId    String
   createdAt DateTime @default(now())
@@ -277,9 +265,8 @@ model CommunityMadeIt {
   @@index([userId])
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model CommunityMessage {
-  id             String   @id
+  id             String   @id @default(cuid())
   conversationId String
   senderId       String
   recipientId    String
@@ -291,9 +278,8 @@ model CommunityMessage {
   @@index([recipientId, createdAt])
 }
 
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model CommunityNotification {
-  id           String   @id
+  id           String   @id @default(cuid())
   userId       String
   actorId      String
   type         String
@@ -304,122 +290,6 @@ model CommunityNotification {
 
   @@index([userId, read, createdAt])
 }
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model CommunityPost {
-  id               String   @id
-  authorId         String
-  caption          String
-  imageUrl         String
-  additionalImages Json?
-  recipeId         String?
-  tags             String[]
-  isChallengeEntry Boolean  @default(false)
-  challengeName    String?
-  isPinned         Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime
-
-  @@index([authorId])
-  @@index([createdAt])
-  @@index([recipeId])
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model CommunityReaction {
-  id        String   @id
-  postId    String
-  userId    String
-  type      String   @default("LIKE")
-  createdAt DateTime @default(now())
-
-  @@unique([postId, userId, type])
-  @@index([userId])
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model CommunityReport {
-  id         String   @id
-  postId     String
-  reporterId String
-  reason     String
-  details    String?
-  status     String   @default("PENDING")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime
-
-  @@unique([postId, reporterId])
-  @@index([status, createdAt])
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model CommunityReview {
-  id                 String   @id
-  postId             String
-  userId             String
-  rating             Int
-  flavorRating       Int?
-  easeRating         Int?
-  presentationRating Int?
-  comment            String
-  cookingTips        String?
-  madeItPhoto        String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime
-
-  @@unique([postId, userId])
-  @@index([userId])
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model CommunitySavedPost {
-  id           String   @id
-  postId       String
-  userId       String
-  collectionId String?
-  createdAt    DateTime @default(now())
-
-  @@unique([postId, userId])
-  @@index([collectionId])
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model CommunityStory {
-  id        String   @id
-  authorId  String
-  imageUrl  String
-  caption   String
-  tag       String?
-  createdAt DateTime @default(now())
-  expiresAt DateTime
-
-  @@index([authorId])
-  @@index([expiresAt])
-}
-
-model DailyEntry {
-  id        String   @id
->>>>>>> cd60544 (add plant ai or nutrition analizer server site)
-  userId    String
-  date      String
-  kcal      Int      @default(0)
-  protein   Int      @default(0)
-  createdAt DateTime @default(now())
-<<<<<<< HEAD
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-=======
-  updatedAt DateTime
-  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
->>>>>>> cd60544 (add plant ai or nutrition analizer server site)
-
-  @@unique([userId, date])
-  @@index([userId])
-}
-<<<<<<< ours
-
-// =================== COMMUNITY MODELS ===================
 
 model CommunityPost {
   id               String   @id @default(cuid())
@@ -436,22 +306,8 @@ model CommunityPost {
   updatedAt        DateTime @updatedAt
 
   @@index([authorId])
-  @@index([recipeId])
   @@index([createdAt])
-}
-
-model CommunityComment {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String
-  parentId  String?
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([postId, createdAt])
-  @@index([userId])
-  @@index([parentId])
+  @@index([recipeId])
 }
 
 model CommunityReaction {
@@ -463,6 +319,20 @@ model CommunityReaction {
 
   @@unique([postId, userId, type])
   @@index([userId])
+}
+
+model CommunityReport {
+  id         String   @id @default(cuid())
+  postId     String
+  reporterId String
+  reason     String
+  details    String?
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([postId, reporterId])
+  @@index([status, createdAt])
 }
 
 model CommunityReview {
@@ -494,39 +364,6 @@ model CommunitySavedPost {
   @@index([collectionId])
 }
 
-model CommunityCollection {
-  id          String   @id @default(cuid())
-  userId      String
-  name        String
-  description String?
-  coverImage  String?
-  isPrivate   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([userId])
-}
-
-model CommunityFollow {
-  id          String   @id @default(cuid())
-  followerId  String
-  followingId String
-  createdAt   DateTime @default(now())
-
-  @@unique([followerId, followingId])
-  @@index([followingId])
-}
-
-model CommunityMadeIt {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String
-  createdAt DateTime @default(now())
-
-  @@unique([postId, userId])
-  @@index([userId])
-}
-
 model CommunityStory {
   id        String   @id @default(cuid())
   authorId  String
@@ -540,64 +377,26 @@ model CommunityStory {
   @@index([expiresAt])
 }
 
-model CommunityConversation {
-  id        String   @id @default(cuid())
-  pairKey   String   @unique
+model DailyEntry {
+  id        String   @id
+>>>>>>> cd60544 (add plant ai or nutrition analizer server site)
+  userId    String
+  date      String
+  kcal      Int      @default(0)
+  protein   Int      @default(0)
   createdAt DateTime @default(now())
+<<<<<<< HEAD
   updatedAt DateTime @updatedAt
-}
 
-model CommunityConversationMember {
-  id             String    @id @default(cuid())
-  conversationId String
-  userId         String
-  lastReadAt     DateTime?
-  createdAt      DateTime  @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+=======
+  updatedAt DateTime
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+>>>>>>> cd60544 (add plant ai or nutrition analizer server site)
 
-  @@unique([conversationId, userId])
+  @@unique([userId, date])
   @@index([userId])
 }
-
-model CommunityMessage {
-  id             String   @id @default(cuid())
-  conversationId String
-  senderId       String
-  recipientId    String
-  text           String
-  attachedPostId String?
-  createdAt      DateTime @default(now())
-
-  @@index([conversationId, createdAt])
-  @@index([recipientId, createdAt])
-}
-
-model CommunityReport {
-  id         String   @id @default(cuid())
-  postId     String
-  reporterId String
-  reason     String
-  details    String?
-  status     String   @default("PENDING")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@unique([postId, reporterId])
-  @@index([status, createdAt])
-}
-
-model CommunityNotification {
-  id           String   @id @default(cuid())
-  userId       String
-  actorId      String
-  type         String
-  text         String
-  targetPostId String?
-  read         Boolean  @default(false)
-  createdAt    DateTime @default(now())
-
-  @@index([userId, read, createdAt])
-}
-=======
 <<<<<<< HEAD
 =======
 
@@ -634,4 +433,3 @@ model PantryRecipe {
   updatedAt       DateTime @updatedAt
 }
 >>>>>>> cd60544 (add plant ai or nutrition analizer server site)
->>>>>>> theirs

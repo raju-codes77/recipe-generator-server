@@ -94,6 +94,9 @@ app.get("/", (req, res) => {
 // Recipe routes
 app.use("/api", recipeRoutes);
 
+// User routes
+app.use("/api/users", userRoutes);
+
 // Pantry-to-Plate routes
 app.use("/api/pantry-to-plate", pantryRoutes);
 
@@ -121,13 +124,7 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-<<<<<<< HEAD
-// Recipe matcher AI routes â†’ mounted under /api
-app.use("/api/users", userRoutes);
-app.use("/api", recipeMatcherRoute);
-=======
 // ================= SERVER =================
->>>>>>> cd60544 (add plant ai or nutrition analizer server site)
 
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
