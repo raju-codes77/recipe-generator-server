@@ -1,16 +1,11 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-<<<<<<< ours
+import { PrismaClient } from "./generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import recipeMatcherRoute from "./routes/recipeMatcher.route";
 import dotenv from "dotenv";
-=======
->>>>>>> theirs
 import { toNodeHandler } from "better-auth/node";
-import dotenv from "dotenv";
-import multer from "multer";
-
-import recipeMatcherRoute from "./routes/recipeMatcher.route";
 import { auth } from "./src/lib/auth";
 import { prisma } from "./src/lib/prisma";
 import { analyzeMeal } from "./src/services/meal-analyze.service";
