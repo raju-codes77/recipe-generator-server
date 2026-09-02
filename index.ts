@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { toNodeHandler } from "better-auth/node";
@@ -13,6 +13,7 @@ import { analyzeMeal } from "./src/services/meal-analyze.service";
 // Import Recipe Routes
 import recipeRoutes from "./src/recipe/recipe.routes";
 import userRoutes from "./src/routes/user.routes";
+import communityRoutes from "./src/community/community.routes";
 
 // Import Pantry-to-Plate Routes
 import pantryRoutes from "./routes/pantryRoutes";
@@ -88,6 +89,9 @@ app.get("/", (req, res) => {
 // Recipe routes
 app.use("/api", recipeRoutes);
 
+// User routes
+app.use("/api/users", userRoutes);
+
 // Pantry-to-Plate routes
 app.use("/api/pantry-to-plate", pantryRoutes);
 
@@ -115,13 +119,7 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-<<<<<<< HEAD
-// Recipe matcher AI routes â†’ mounted under /api
-app.use("/api/users", userRoutes);
-app.use("/api", recipeMatcherRoute);
-=======
 // ================= SERVER =================
->>>>>>> cd60544 (add plant ai or nutrition analizer server site)
 
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
