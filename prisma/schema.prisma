@@ -14,6 +14,7 @@ model User {
   emailVerified Boolean   @default(false)
   image         String?
   role          String?   @default("user")
+  status        String    @default("ACTIVE")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -22,6 +23,14 @@ model User {
   favorites    Favorite[]
   recipes      Recipe[]
   collections  Collection[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String?  // if user loged in and show id( it's optional)
+  role      String   // "user" অথবা "assistant"
+  content   String   // chat messege or recipe
+  createdAt DateTime @default(now())
 }
 
 model Session {
