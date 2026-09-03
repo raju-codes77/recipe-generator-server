@@ -27,6 +27,11 @@ export const communityController = {
     });
   }),
 
+  listSuggestedChefs: handle(async (req, res) => {
+    const user = await getOptionalCommunityUser(req);
+    res.json({ chefs: await communityService.listSuggestedChefs(user?.id) });
+  }),
+
   getPostInteractions: handle(async (req, res) => {
     const parseQueryNumber = (value: unknown) => {
       const parsed = Number(value);

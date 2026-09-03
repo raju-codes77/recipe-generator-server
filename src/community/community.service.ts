@@ -173,6 +173,81 @@ export class CommunityService {
     });
   }
 
+  async listSuggestedChefs(viewerId?: string | null) {
+    type SuggestedChefRow = {
+      id: string;
+      name: string;
+      email: string;
+      image: string | null;
+      recipesCount: number;
+      followersCount: number;
+      activityCount: number;
+    };
+
+    const rows = await prisma.$queryRaw<SuggestedChefRow[]>`
+      WITH activity AS (
+        SELECT "authorId" AS user_id, 3::int AS activity_score, 1::int AS post_count FROM "CommunityPost"
+        UNION ALL SELECT "userId", 1::int, 0::int FROM "CommunityComment"
+        UNION ALL SELECT "userId", 1::int, 0::int FROM "CommunityReaction"
+        UNION ALL SELECT "userId", 1::int, 0::int FROM "CommunityReview"
+        UNION ALL SELECT "userId", 1::int, 0::int FROM "CommunitySavedPost"
+        UNION ALL SELECT "userId", 1::int, 0::int FROM "CommunityMadeIt"
+        UNION ALL SELECT "authorId", 2::int, 0::int FROM "CommunityStory"
+        UNION ALL SELECT "followerId", 1::int, 0::int FROM "CommunityFollow"
+        UNION ALL SELECT "senderId", 1::int, 0::int FROM "CommunityMessage"
+      ),
+      activity_stats AS (
+        SELECT user_id, SUM(activity_score)::int AS activity_score, SUM(post_count)::int AS post_count, COUNT(*)::int AS activity_count
+        FROM activity
+        GROUP BY user_id
+      ),
+      recipe_stats AS (
+        SELECT "authorId" AS user_id, COUNT(*) FILTER (WHERE "recipeId" IS NOT NULL)::int AS recipes_count
+        FROM "CommunityPost"
+        GROUP BY "authorId"
+      ),
+      follower_stats AS (
+        SELECT "followingId" AS user_id, COUNT(*)::int AS followers_count
+        FROM "CommunityFollow"
+        GROUP BY "followingId"
+      )
+      SELECT
+        u."id" AS id,
+        u."name" AS name,
+        u."email" AS email,
+        u."image" AS image,
+        COALESCE(rs.recipes_count, 0)::int AS "recipesCount",
+        COALESCE(fs.followers_count, 0)::int AS "followersCount",
+        a.activity_count AS "activityCount"
+      FROM activity_stats a
+      INNER JOIN "User" u ON u."id" = a.user_id
+      LEFT JOIN recipe_stats rs ON rs.user_id = u."id"
+      LEFT JOIN follower_stats fs ON fs.user_id = u."id"
+      ORDER BY a.post_count DESC, a.activity_score DESC, a.activity_count DESC, u."name" ASC
+      LIMIT 50
+    `;
+
+    const followingIds = viewerId
+      ? new Set(
+          (await prisma.communityFollow.findMany({
+            where: { followerId: viewerId, followingId: { in: rows.map((row) => row.id) } },
+            select: { followingId: true },
+          })).map((follow) => follow.followingId),
+        )
+      : new Set<string>();
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      username: (row.email.split("@")[0] || "community_cook").replace(/[^a-zA-Z0-9_]/g, "_"),
+      avatar: row.image || "",
+      role: "user" as const,
+      followersCount: Number(row.followersCount) || 0,
+      isFollowing: followingIds.has(row.id),
+      recipesCount: Number(row.recipesCount) || 0,
+    }));
+  }
+
   async getPublicProfile(userId: string, viewerId?: string | null) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw Object.assign(new Error("Community user not found"), { statusCode: 404 });
