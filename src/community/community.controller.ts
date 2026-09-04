@@ -197,7 +197,7 @@ export const communityController = {
     const story = await communityService.createStory(
       user.id,
       parseRequiredText(req.body.imageUrl, "Story image"),
-      parseRequiredText(req.body.caption, "Caption", 500),
+      req.body.caption ? parseRequiredText(req.body.caption, "Caption", 500) : "",
       req.body.tag
     );
 
