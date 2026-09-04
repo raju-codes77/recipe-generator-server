@@ -248,12 +248,26 @@ export class CommunityService {
     }));
   }
 
-  async getPublicProfile(userId: string, viewerId?: string | null) {
+  async getPublicProfile(
+    userId: string,
+    viewerId?: string | null,
+    options: { take?: number; skip?: number } = {},
+  ) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw Object.assign(new Error("Community user not found"), { statusCode: 404 });
 
-    const posts = await this.listPosts(viewerId, { authorId: userId, take: 50 });
+    const take = Math.min(Math.max(options.take ?? 6, 1), 20);
+    const skip = Math.max(options.skip ?? 0, 0);
+    const pagePosts = await this.listPosts(viewerId, { authorId: userId, take: take + 1, skip });
+    const hasMorePosts = pagePosts.length > take;
+    const posts = pagePosts.slice(0, take);
     const stories = await this.listStories(userId);
+    const postsTotal = await prisma.communityPost.count({ where: { authorId: userId } });
+    const recipesTotal = await prisma.communityPost.count({ where: { authorId: userId, recipeId: { not: null } } });
+    const profilePostIds = await prisma.communityPost.findMany({ where: { authorId: userId }, select: { id: true } });
+    const likesTotal = profilePostIds.length
+      ? await prisma.communityReaction.count({ where: { postId: { in: profilePostIds.map((post) => post.id) }, type: "LIKE" } })
+      : 0;
     const followersCount = await prisma.communityFollow.count({ where: { followingId: userId } });
     const followingCount = await prisma.communityFollow.count({ where: { followerId: userId } });
     const following = viewerId
@@ -271,9 +285,12 @@ export class CommunityService {
         role: "user" as const,
         followersCount,
         isFollowing: Boolean(following),
-        recipesCount: posts.filter((post) => post.recipe).length,
+        recipesCount: recipesTotal,
       },
       posts,
+      postsTotal,
+      likesTotal: viewerId === userId ? likesTotal : undefined,
+      hasMorePosts,
       stories,
       followingCount,
     };

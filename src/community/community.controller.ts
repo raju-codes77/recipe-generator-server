@@ -152,7 +152,14 @@ export const communityController = {
 
   getPublicProfile: handle(async (req, res) => {
     const viewer = await getOptionalCommunityUser(req);
-    res.json({ profile: await communityService.getPublicProfile(param(req.params.userId), viewer?.id) });
+    const rawTake = Number(req.query.take);
+    const rawSkip = Number(req.query.skip);
+    res.json({
+      profile: await communityService.getPublicProfile(param(req.params.userId), viewer?.id, {
+        take: Number.isFinite(rawTake) ? rawTake : undefined,
+        skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+      }),
+    });
   }),
 
   listCollections: handle(async (req, res) => {
