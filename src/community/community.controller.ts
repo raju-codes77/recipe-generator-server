@@ -61,6 +61,7 @@ export const communityController = {
     await communityService.updatePost(user.id, param(req.params.postId), {
       caption: req.body.caption ? parseRequiredText(req.body.caption, "Caption", 3000) : undefined,
       tags: Array.isArray(req.body.tags) ? req.body.tags.map(String).slice(0, 12) : undefined,
+      isPinned: typeof req.body.isPinned === "boolean" ? req.body.isPinned : undefined,
     });
 
     res.json({ success: true });
@@ -167,6 +168,18 @@ export const communityController = {
     res.json({ collections: await communityService.listCollections(user.id) });
   }),
 
+  listSavedPosts: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    const rawTake = Number(req.query.take);
+    const rawSkip = Number(req.query.skip);
+    res.json({
+      ...(await communityService.listSavedPosts(user.id, {
+        take: Number.isFinite(rawTake) ? rawTake : undefined,
+        skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+      })),
+    });
+  }),
+
   createCollection: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
 
@@ -209,6 +222,21 @@ export const communityController = {
     await communityService.deleteStory(user.id, param(req.params.storyId));
 
     res.status(204).end();
+  }),
+
+  recordStoryView: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json({ viewed: await communityService.recordStoryView(user.id, param(req.params.storyId)) });
+  }),
+
+  listStoryViewers: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json({ viewers: await communityService.listStoryViewers(user.id, param(req.params.storyId)) });
+  }),
+
+  updateMyProfile: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json({ profile: await communityService.updateProfile(user.id, req.body) });
   }),
 
   listNotifications: handle(async (req, res) => {
@@ -273,7 +301,7 @@ export const communityController = {
   upload: handle(async (req, res) => {
     await requireCommunityUser(req);
 
-    const folder = req.body.folder === "stories" ? "stories" : "posts";
+    const folder = req.body.folder === "stories" ? "stories" : req.body.folder === "profiles" ? "profiles" : "posts";
 
     res.status(201).json({
       url: await uploadCommunityImage(

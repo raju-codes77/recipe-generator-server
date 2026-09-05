@@ -5,7 +5,7 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/g
 
 export async function uploadCommunityImage(
   dataUrl: string,
-  folder: "posts" | "stories"
+  folder: "posts" | "stories" | "profiles"
 ): Promise<string> {
   const match = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
 
