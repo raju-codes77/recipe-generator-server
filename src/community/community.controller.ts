@@ -19,10 +19,15 @@ export const communityController = {
     const user = await getOptionalCommunityUser(req);
     const rawTake = Number(req.query.take);
     const rawSkip = Number(req.query.skip);
+    const requestedFilter = typeof req.query.filter === "string" ? req.query.filter : "all";
+    const filter = ["all", "trending", "following", "quick", "wellness", "challenge", "ai_sparks", "saved", "liked"].includes(requestedFilter)
+      ? requestedFilter as "all" | "trending" | "following" | "quick" | "wellness" | "challenge" | "ai_sparks" | "saved" | "liked"
+      : "all";
     res.json({
       posts: await communityService.listPosts(user?.id, {
         take: Number.isFinite(rawTake) ? rawTake : undefined,
         skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+        filter,
       }),
     });
   }),
@@ -30,6 +35,11 @@ export const communityController = {
   listSuggestedChefs: handle(async (req, res) => {
     const user = await getOptionalCommunityUser(req);
     res.json({ chefs: await communityService.listSuggestedChefs(user?.id) });
+  }),
+
+  getFeedCounts: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json(await communityService.getFeedCounts(user.id));
   }),
 
   getPostInteractions: handle(async (req, res) => {
@@ -149,6 +159,17 @@ export const communityController = {
   toggleFollow: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
     res.json(await communityService.toggleFollow(user.id, param(req.params.userId)));
+  }),
+
+  sharePost: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.status(201).json({ post: await communityService.sharePost(user.id, param(req.params.postId)) });
+  }),
+
+  listConnections: handle(async (req, res) => {
+    const viewer = await getOptionalCommunityUser(req);
+    const type = req.query.type === "followers" ? "followers" : "following";
+    res.json({ users: await communityService.listConnections(param(req.params.userId), type, viewer?.id) });
   }),
 
   getPublicProfile: handle(async (req, res) => {

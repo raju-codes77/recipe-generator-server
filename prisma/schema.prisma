@@ -185,6 +185,7 @@ model CommunityPost {
   imageUrl         String
   additionalImages Json?
   recipeId         String?
+  sharedFromId     String?
   tags             String[]
   isChallengeEntry Boolean  @default(false)
   challengeName    String?
@@ -192,8 +193,12 @@ model CommunityPost {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  sharedFrom       CommunityPost?  @relation("CommunityPostShare", fields: [sharedFromId], references: [id], onDelete: SetNull)
+  shares           CommunityPost[] @relation("CommunityPostShare")
+
   @@index([authorId, isPinned, createdAt])
   @@index([recipeId])
+  @@index([sharedFromId])
   @@index([createdAt])
 }
 

@@ -6,8 +6,10 @@ router.use(json({ limit: "9mb" }));
 
 router.get("/posts", communityController.listPosts);
 router.get("/suggested-chefs", communityController.listSuggestedChefs);
+router.get("/feed-counts", communityController.getFeedCounts);
 router.get("/posts/:postId/interactions", communityController.getPostInteractions);
 router.post("/posts", communityController.createPost);
+router.post("/posts/:postId/share", communityController.sharePost);
 router.patch("/posts/:postId", communityController.updatePost);
 router.delete("/posts/:postId", communityController.deletePost);
 router.post("/posts/:postId/like", communityController.toggleLike);
@@ -20,6 +22,7 @@ router.delete("/posts/:postId/reviews", communityController.deleteReview);
 router.post("/posts/:postId/save", communityController.savePost);
 router.post("/posts/:postId/reports", communityController.reportPost);
 router.get("/users/:userId/profile", communityController.getPublicProfile);
+router.get("/users/:userId/connections", communityController.listConnections);
 router.post("/users/:userId/follow", communityController.toggleFollow);
 router.get("/collections", communityController.listCollections);
 router.get("/saved-posts", communityController.listSavedPosts);

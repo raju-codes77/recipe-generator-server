@@ -52,23 +52,108 @@ export class CommunityService {
 
   async listPosts(
     viewerId?: string | null,
-    options: { authorId?: string; postIds?: string[]; take?: number; skip?: number } = {},
+    options: {
+      authorId?: string;
+      postIds?: string[];
+      take?: number;
+      skip?: number;
+      filter?: "all" | "trending" | "following" | "quick" | "wellness" | "challenge" | "ai_sparks" | "saved" | "liked";
+    } = {},
   ) {
     const take = Math.min(Math.max(options.take ?? 20, 1), 50);
     const skip = Math.max(options.skip ?? 0, 0);
+    let filteredPostIds: string[] | undefined;
+    let filterOrder: Map<string, number> | undefined;
+
+    if (options.filter && options.filter !== "all") {
+      if ((options.filter === "following" || options.filter === "saved" || options.filter === "liked") && !viewerId) {
+        return [];
+      }
+
+      if (options.filter === "following") {
+        const follows = await prisma.communityFollow.findMany({
+          where: { followerId: viewerId as string },
+          select: { followingId: true },
+        });
+        filteredPostIds = (await prisma.communityPost.findMany({
+          where: { authorId: { in: follows.map((follow) => follow.followingId) } },
+          select: { id: true },
+        })).map((post) => post.id);
+      } else if (options.filter === "saved") {
+        filteredPostIds = (await prisma.communitySavedPost.findMany({
+          where: { userId: viewerId as string },
+          orderBy: { createdAt: "desc" },
+          select: { postId: true },
+        })).map((row) => row.postId);
+      } else if (options.filter === "liked") {
+        filteredPostIds = (await prisma.communityReaction.findMany({
+          where: { userId: viewerId as string, type: "LIKE" },
+          select: { postId: true },
+        })).map((row) => row.postId);
+      } else if (options.filter === "challenge") {
+        filteredPostIds = (await prisma.communityPost.findMany({
+          where: { isChallengeEntry: true },
+          select: { id: true },
+        })).map((post) => post.id);
+      } else if (options.filter === "quick" || options.filter === "wellness" || options.filter === "ai_sparks") {
+        const recipeWhere = options.filter === "quick"
+          ? { time: { lte: 25 } }
+          : options.filter === "wellness"
+            ? { OR: [
+                { category: { contains: "protein", mode: "insensitive" as const } },
+                { category: { contains: "healthy", mode: "insensitive" as const } },
+                { category: { contains: "vegan", mode: "insensitive" as const } },
+                { category: { contains: "vegetarian", mode: "insensitive" as const } },
+              ] }
+            : { OR: [
+                { mealId: { not: null } },
+                { tabType: { contains: "ai", mode: "insensitive" as const } },
+              ] };
+        const recipes = await prisma.recipe.findMany({ where: recipeWhere, select: { id: true } });
+        filteredPostIds = (await prisma.communityPost.findMany({
+          where: { recipeId: { in: recipes.map((recipe) => recipe.id) } },
+          select: { id: true },
+        })).map((post) => post.id);
+      } else if (options.filter === "trending") {
+        const ranked = await prisma.$queryRaw<Array<{ id: string }>>`
+          SELECT p."id" AS id
+          FROM "CommunityPost" p
+          LEFT JOIN "CommunityReaction" reaction
+            ON reaction."postId" = p."id" AND reaction."type" = 'LIKE'
+          LEFT JOIN "CommunityReview" review
+            ON review."postId" = p."id"
+          GROUP BY p."id", p."isPinned", p."createdAt"
+          ORDER BY p."isPinned" DESC,
+            COUNT(DISTINCT reaction."id") DESC,
+            COALESCE(AVG(review."rating"), 0) DESC,
+            p."createdAt" DESC
+          LIMIT ${take} OFFSET ${skip}
+        `;
+        filteredPostIds = ranked.map((row) => row.id);
+        filterOrder = new Map(filteredPostIds.map((id, index) => [id, index]));
+      }
+
+      if (filteredPostIds && filteredPostIds.length === 0) return [];
+    }
+
     const posts = await prisma.communityPost.findMany({
       where: {
         ...(options.authorId ? { authorId: options.authorId } : {}),
         ...(options.postIds ? { id: { in: options.postIds } } : {}),
+        ...(filteredPostIds ? { id: { in: filteredPostIds } } : {}),
       },
       orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-      take,
-      skip,
+      take: filterOrder ? filteredPostIds?.length : take,
+      skip: filterOrder ? 0 : skip,
     });
     if (posts.length === 0) return [];
 
     const postIds = posts.map((post) => post.id);
-    const authorIds = [...new Set(posts.map((post) => post.authorId))];
+    const sourcePostIds = posts.flatMap((post) => (post.sharedFromId ? [post.sharedFromId] : []));
+    const sourcePosts = sourcePostIds.length
+      ? await prisma.communityPost.findMany({ where: { id: { in: sourcePostIds } }, select: { id: true, authorId: true } })
+      : [];
+    const authorIds = [...new Set([...posts.map((post) => post.authorId), ...sourcePosts.map((post) => post.authorId)])];
     const recipeIds = posts.flatMap((post) => (post.recipeId ? [post.recipeId] : []));
     // These reads are independent. Promise.all reduces API latency while the
     // PrismaPg pool (max: 5) keeps database concurrency bounded.
@@ -133,6 +218,7 @@ export class CommunityService {
         : [],
     ]);
     const recipeMap = new Map(recipes.map((recipe) => [recipe.id, recipe]));
+    const sourcePostById = new Map(sourcePosts.map((post) => [post.id, post]));
     const following = new Set(follows.map((follow) => follow.followingId));
     const followersByUserId = new Map(followerCounts.map((item) => [item.followingId, item._count._all]));
     const commentsByPostId = new Map(commentCounts.map((item) => [item.postId, item._count._all]));
@@ -145,14 +231,20 @@ export class CommunityService {
     const viewerMadeItPostIds = new Set(viewerMadeIts.map((item) => item.postId));
     const recipesByAuthorId = new Map<string, number>();
     for (const post of posts) {
-      if (post.recipeId) recipesByAuthorId.set(post.authorId, (recipesByAuthorId.get(post.authorId) || 0) + 1);
+      if (post.recipeId && !post.sharedFromId) recipesByAuthorId.set(post.authorId, (recipesByAuthorId.get(post.authorId) || 0) + 1);
     }
 
-    return posts.map((post) => {
+    const orderedPosts = filterOrder
+      ? [...posts].sort((left, right) => (filterOrder?.get(left.id) ?? 0) - (filterOrder?.get(right.id) ?? 0))
+      : posts;
+
+    return orderedPosts.map((post) => {
       const author = users.get(post.authorId);
       const recipe = post.recipeId ? recipeMap.get(post.recipeId) : undefined;
       const review = reviewsByPostId.get(post.id);
       const average = (value: number | null | undefined) => (value ? Number(value.toFixed(1)) : 0);
+      const sharedSource = post.sharedFromId ? sourcePostById.get(post.sharedFromId) : undefined;
+      const sharedAuthor = sharedSource ? users.get(sharedSource.authorId) : undefined;
       return {
         id: post.id,
         author: {
@@ -183,7 +275,11 @@ export class CommunityService {
               ingredients: recipe.ingredients.map((item) => ({ name: item.name, amount: item.measure || "As needed" })),
               steps: parseRecipeSteps(recipe.instructions),
               nutrition: { calories: recipe.calories, protein: 0, carbs: 0, fat: 0 },
-              sourceType: "community" as const,
+              sourceType: recipe.mealId
+                ? "mealdb" as const
+                : recipe.tabType.toLowerCase().includes("ai")
+                  ? "ai_generated" as const
+                  : "community" as const,
             }
           : undefined,
         rating: {
@@ -207,6 +303,15 @@ export class CommunityService {
         isChallengeEntry: post.isChallengeEntry,
         challengeName: post.challengeName || undefined,
         isPinned: post.isPinned,
+        sharedFrom: sharedAuthor ? {
+          id: sharedAuthor.id,
+          name: sharedAuthor.name,
+          username: (sharedAuthor.email.split("@")[0] || "community_cook").replace(/[^a-zA-Z0-9_]/g, "_"),
+          avatar: sharedAuthor.image || "",
+          role: "user" as const,
+          followersCount: 0,
+          recipesCount: 0,
+        } : undefined,
       };
     });
   }
@@ -240,7 +345,7 @@ export class CommunityService {
         GROUP BY user_id
       ),
       recipe_stats AS (
-        SELECT "authorId" AS user_id, COUNT(*) FILTER (WHERE "recipeId" IS NOT NULL)::int AS recipes_count
+        SELECT "authorId" AS user_id, COUNT(*) FILTER (WHERE "recipeId" IS NOT NULL AND "sharedFromId" IS NULL)::int AS recipes_count
         FROM "CommunityPost"
         GROUP BY "authorId"
       ),
@@ -309,7 +414,7 @@ export class CommunityService {
       }>>`
         SELECT
           COUNT(*)::int AS "postsTotal",
-          COUNT(*) FILTER (WHERE "recipeId" IS NOT NULL)::int AS "recipesTotal",
+          COUNT(*) FILTER (WHERE "recipeId" IS NOT NULL AND "sharedFromId" IS NULL)::int AS "recipesTotal",
           COALESCE((
             SELECT COUNT(*)::int
             FROM "CommunityReaction" AS reaction
@@ -528,6 +633,26 @@ export class CommunityService {
     });
   }
 
+  async sharePost(userId: string, postId: string) {
+    const original = await prisma.communityPost.findUnique({ where: { id: postId } });
+    if (!original) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
+    if (original.authorId === userId) throw Object.assign(new Error("You cannot share your own post"), { statusCode: 400 });
+
+    const shared = await prisma.communityPost.create({
+      data: {
+        authorId: userId,
+        caption: original.caption,
+        imageUrl: original.imageUrl,
+        additionalImages: original.additionalImages ?? undefined,
+        recipeId: original.recipeId,
+        sharedFromId: original.id,
+        tags: original.tags,
+        isChallengeEntry: false,
+      },
+    });
+    return (await this.listPosts(userId, { postIds: [shared.id], take: 1 }))[0];
+  }
+
   async deletePost(userId: string, postId: string) {
     const post = await prisma.communityPost.findUnique({ where: { id: postId } });
     if (!post || post.authorId !== userId) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
@@ -601,6 +726,46 @@ export class CommunityService {
         data: { userId: followingId, actorId: followerId, type: "FOLLOW", text: "started following you" },
       });
     return { active: !existing };
+  }
+
+  async listConnections(userId: string, type: "followers" | "following", viewerId?: string | null) {
+    const follows = await prisma.communityFollow.findMany({
+      where: type === "followers" ? { followingId: userId } : { followerId: userId },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: { followerId: true, followingId: true },
+    });
+    const connectionIds = follows.map((follow) => type === "followers" ? follow.followerId : follow.followingId);
+    if (connectionIds.length === 0) return [];
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: connectionIds } },
+      select: { id: true, name: true, email: true, image: true },
+    });
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    const followingIds = viewerId
+      ? new Set(
+          (await prisma.communityFollow.findMany({
+            where: { followerId: viewerId, followingId: { in: connectionIds } },
+            select: { followingId: true },
+          })).map((follow) => follow.followingId),
+        )
+      : new Set<string>();
+
+    return connectionIds.flatMap((connectionId) => {
+      const user = usersById.get(connectionId);
+      if (!user) return [];
+      return [{
+        id: user.id,
+        name: user.name,
+        username: (user.email.split("@")[0] || "community_cook").replace(/[^a-zA-Z0-9_]/g, "_"),
+        avatar: user.image || "",
+        role: "user" as const,
+        followersCount: 0,
+        isFollowing: followingIds.has(user.id),
+        recipesCount: 0,
+      }];
+    });
   }
 
   async listCollections(userId: string) {
@@ -708,6 +873,14 @@ export class CommunityService {
       }),
       hasMore,
     };
+  }
+
+  async getFeedCounts(userId: string) {
+    const [savedPostsCount, likedPostsCount] = await Promise.all([
+      prisma.communitySavedPost.count({ where: { userId } }),
+      prisma.communityReaction.count({ where: { userId, type: "LIKE" } }),
+    ]);
+    return { savedPostsCount, likedPostsCount };
   }
 
   async recordStoryView(viewerId: string, storyId: string) {
