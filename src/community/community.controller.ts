@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
-import { getOptionalCommunityUser, requireCommunityUser } from "./community.auth";
-import { communityService } from "./community.service";
-import { uploadCommunityImage } from "./community-storage.service";
-import { parsePostInput, parseRating, parseRequiredText } from "./community.validation";
-import { prisma } from "../lib/prisma";
+import { getOptionalCommunityUser, requireCommunityUser } from "./community.auth.js";
+import { communityService } from "./community.service.js";
+import { uploadCommunityImage } from "./community-storage.service.js";
+import { parsePostInput, parseRating, parseRequiredText } from "./community.validation.js";
+import { prisma } from "../lib/prisma.js";
 
 type Handler = (req: Request, res: Response) => Promise<unknown>;
 
@@ -19,12 +19,11 @@ export const communityController = {
     const user = await getOptionalCommunityUser(req);
     const rawTake = Number(req.query.take);
     const rawSkip = Number(req.query.skip);
-    res.json({
-      posts: await communityService.listPosts(user?.id, {
-        take: Number.isFinite(rawTake) ? rawTake : undefined,
-        skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
-      }),
-    });
+  res.json(
+    await communityService.listPosts(user?.id, {
+      take: Number.isFinite(rawTake) ? rawTake : undefined,
+    })
+  );
   }),
 
   getPostInteractions: handle(async (req, res) => {

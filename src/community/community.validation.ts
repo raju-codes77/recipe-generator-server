@@ -1,4 +1,4 @@
-import type { CreateCommunityPostInput } from "./community.types";
+import type { CreateCommunityPostInput } from "./community.types.js";
 
 function text(value: unknown, maxLength: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
