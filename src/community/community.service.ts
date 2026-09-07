@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma";
+import { TEXT_ONLY_POST_IMAGE } from "./community.validation";
 import type { AuthenticatedCommunityUser, CreateCommunityPostInput } from "./community.types";
 
 function timeAgo(value: Date): string {
@@ -55,6 +56,7 @@ export class CommunityService {
     options: {
       authorId?: string;
       postIds?: string[];
+      excludePinned?: boolean;
       take?: number;
       skip?: number;
       filter?: "all" | "trending" | "following" | "quick" | "wellness" | "challenge" | "ai_sparks" | "saved" | "liked";
@@ -140,6 +142,7 @@ export class CommunityService {
       where: {
         ...(options.authorId ? { authorId: options.authorId } : {}),
         ...(options.postIds ? { id: { in: options.postIds } } : {}),
+        ...(options.excludePinned ? { isPinned: false } : {}),
         ...(filteredPostIds ? { id: { in: filteredPostIds } } : {}),
       },
       orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
@@ -258,7 +261,7 @@ export class CommunityService {
           recipesCount: recipesByAuthorId.get(post.authorId) || 0,
         },
         caption: post.caption,
-        imageUrl: post.imageUrl,
+        imageUrl: post.imageUrl === TEXT_ONLY_POST_IMAGE ? "" : post.imageUrl,
         additionalImages: Array.isArray(post.additionalImages) ? post.additionalImages : [],
         recipe: recipe
           ? {
@@ -579,7 +582,7 @@ export class CommunityService {
         recipesCount: input.recipe ? 1 : 0,
       },
       caption: createdPost.caption,
-      imageUrl: createdPost.imageUrl,
+      imageUrl: createdPost.imageUrl === TEXT_ONLY_POST_IMAGE ? "" : createdPost.imageUrl,
       additionalImages: Array.isArray(createdPost.additionalImages) ? createdPost.additionalImages : [],
       recipe: input.recipe
         ? {

@@ -1,5 +1,7 @@
 import type { CreateCommunityPostInput } from "./community.types";
 
+export const TEXT_ONLY_POST_IMAGE = "__foodcanvas_text_only__";
+
 function text(value: unknown, maxLength: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }

@@ -28,6 +28,7 @@ export const communityController = {
         take: Number.isFinite(rawTake) ? rawTake : undefined,
         skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
         filter,
+        excludePinned: true,
       }),
     });
   }),
