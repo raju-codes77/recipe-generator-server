@@ -164,7 +164,7 @@ export const communityController = {
 
   sharePost: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
-    res.status(201).json({ post: await communityService.sharePost(user.id, param(req.params.postId)) });
+    res.status(201).json({ post: await communityService.sharePost(user.id, param(req.params.postId), typeof req.body?.caption === "string" ? req.body.caption : undefined) });
   }),
 
   listConnections: handle(async (req, res) => {

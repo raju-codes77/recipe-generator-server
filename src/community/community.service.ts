@@ -154,7 +154,7 @@ export class CommunityService {
     const postIds = posts.map((post) => post.id);
     const sourcePostIds = posts.flatMap((post) => (post.sharedFromId ? [post.sharedFromId] : []));
     const sourcePosts = sourcePostIds.length
-      ? await prisma.communityPost.findMany({ where: { id: { in: sourcePostIds } }, select: { id: true, authorId: true } })
+      ? await prisma.communityPost.findMany({ where: { id: { in: sourcePostIds } }, select: { id: true, authorId: true, caption: true, tags: true, createdAt: true, imageUrl: true } })
       : [];
     const authorIds = [...new Set([...posts.map((post) => post.authorId), ...sourcePosts.map((post) => post.authorId)])];
     const recipeIds = posts.flatMap((post) => (post.recipeId ? [post.recipeId] : []));
@@ -314,6 +314,21 @@ export class CommunityService {
           role: "user" as const,
           followersCount: 0,
           recipesCount: 0,
+        } : undefined,
+        sharedOriginal: sharedSource && sharedAuthor ? {
+          author: {
+            id: sharedAuthor.id,
+            name: sharedAuthor.name,
+            username: (sharedAuthor.email.split("@")[0] || "community_cook").replace(/[^a-zA-Z0-9_]/g, "_"),
+            avatar: sharedAuthor.image || "",
+            role: "user" as const,
+            followersCount: 0,
+            recipesCount: 0,
+          },
+          caption: sharedSource.caption,
+          tags: sharedSource.tags,
+          createdAt: timeAgo(sharedSource.createdAt),
+          imageUrl: sharedSource.imageUrl === TEXT_ONLY_POST_IMAGE ? "" : sharedSource.imageUrl,
         } : undefined,
       };
     });
@@ -636,7 +651,7 @@ export class CommunityService {
     });
   }
 
-  async sharePost(userId: string, postId: string) {
+  async sharePost(userId: string, postId: string, caption?: string) {
     const original = await prisma.communityPost.findUnique({ where: { id: postId } });
     if (!original) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
     if (original.authorId === userId) throw Object.assign(new Error("You cannot share your own post"), { statusCode: 400 });
@@ -644,7 +659,7 @@ export class CommunityService {
     const shared = await prisma.communityPost.create({
       data: {
         authorId: userId,
-        caption: original.caption,
+        caption: caption?.trim().slice(0, 3000) || original.caption,
         imageUrl: original.imageUrl,
         additionalImages: original.additionalImages ?? undefined,
         recipeId: original.recipeId,
@@ -657,16 +672,24 @@ export class CommunityService {
   }
 
   async deletePost(userId: string, postId: string) {
-    const post = await prisma.communityPost.findUnique({ where: { id: postId } });
-    if (!post || post.authorId !== userId) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
-    await prisma.$transaction([
-      prisma.communityComment.deleteMany({ where: { postId } }),
-      prisma.communityReaction.deleteMany({ where: { postId } }),
-      prisma.communityReview.deleteMany({ where: { postId } }),
-      prisma.communitySavedPost.deleteMany({ where: { postId } }),
-      prisma.communityMadeIt.deleteMany({ where: { postId } }),
-      prisma.communityPost.delete({ where: { id: postId } }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      const post = await tx.communityPost.findUnique({ where: { id: postId }, select: { authorId: true, recipeId: true } });
+      if (!post || post.authorId !== userId) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
+
+      await tx.communityComment.deleteMany({ where: { postId } });
+      await tx.communityReaction.deleteMany({ where: { postId } });
+      await tx.communityReview.deleteMany({ where: { postId } });
+      await tx.communitySavedPost.deleteMany({ where: { postId } });
+      await tx.communityMadeIt.deleteMany({ where: { postId } });
+      await tx.communityPost.delete({ where: { id: postId } });
+
+      if (post.recipeId) {
+        const remainingPosts = await tx.communityPost.count({ where: { recipeId: post.recipeId } });
+        if (remainingPosts === 0) {
+          await tx.recipe.delete({ where: { id: post.recipeId } });
+        }
+      }
+    });
   }
 
   async toggleRecord(model: "reaction" | "madeIt", userId: string, postId: string) {

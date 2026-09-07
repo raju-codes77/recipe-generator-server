@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { RecipeService } from "./recipe.service";
+import { prisma } from "../lib/prisma";
 
 export const RecipeController = {
   // =========================
@@ -33,8 +34,24 @@ export const RecipeController = {
           });
         }
 
+        const activeCommunityRecipes = await prisma.communityPost.findMany({
+          where: {
+            authorId: String(userId),
+            recipeId: { not: null },
+            sharedFromId: null,
+          },
+          select: { recipeId: true },
+        });
+        const activeCommunityRecipeIds = activeCommunityRecipes
+          .map((post) => post.recipeId)
+          .filter((recipeId): recipeId is string => Boolean(recipeId));
+
         conditions.push({
           userId: String(userId),
+          OR: [
+            { mealId: { not: { startsWith: "community_" } } },
+            ...(activeCommunityRecipeIds.length > 0 ? [{ id: { in: activeCommunityRecipeIds } }] : []),
+          ],
         });
       }
 
