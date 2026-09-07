@@ -121,7 +121,7 @@ app.post('/api/chat', async (req, res) => {
       },
     });
 
-    // ১. তোর ওয়েবসাইটের পেজ এবং ফিচারের একটা গাইডলাইন বা ম্যাপ তৈরি করো
+    // 1. our website map or overview for the new users
     const siteMapContext = `
     You are FoodCanvas's AI Assistant. Your job is to help users navigate the website and find features.
     Here is a map of the website pages and what they contain:
@@ -134,12 +134,12 @@ app.post('/api/chat', async (req, res) => {
     Always guide users nicely, tell them what is on each page, and provide direct paths/links when they ask where to find something. Be helpful, warm, and concise.
     `;
 
-    // ২. জেমিনিকে সিস্টেম ইনস্ট্রাকশনসহ প্রম্পট পাঠানো
+    // 2.jemini system instruction
     const response = await ai.models.generateContent({
       model: 'gemini-3.6-flash',
       contents: [
-        { role: 'user', parts: [{ text: siteMapContext }] }, // গাইডলাইন আগে ধরিয়ে দেওয়া হলো
-        { role: 'user', parts: [{ text: userMessage.trim() }] } // ইউজারের আসল মেসেজ
+        { role: 'user', parts: [{ text: siteMapContext }] }, 
+        { role: 'user', parts: [{ text: userMessage.trim() }] } 
       ],
     });
 
