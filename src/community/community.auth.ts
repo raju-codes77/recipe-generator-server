@@ -1,6 +1,6 @@
 import type { Request } from "express";
-import { auth } from "../lib/auth";
-import type { AuthenticatedCommunityUser } from "./community.types";
+import { auth } from "../lib/auth.js";
+import type { AuthenticatedCommunityUser } from "./community.types.js";
 
 function requestHeaders(req: Request): Headers {
   const headers = new Headers();

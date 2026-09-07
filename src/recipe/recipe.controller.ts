@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
-import { RecipeService } from "./recipe.service";
+import { RecipeService } from "./recipe.service.js";
+import { requireCommunityUser } from "../community/community.auth.js";
 
 export const RecipeController = {
   // =========================
@@ -17,6 +18,8 @@ export const RecipeController = {
         sortBy,
         tab,
         userId,
+        page,
+        limit,
       } = req.query;
 
       const conditions: any[] = [];
@@ -205,17 +208,28 @@ export const RecipeController = {
       };
 
       // =========================
+      // Pagination
+      // =========================
+      const pageNumber = Math.max(1, parseInt(String(page)) || 1);
+      const pageSize = Math.min(Math.max(1, parseInt(String(limit)) || 12), 50);
+      const skip = (pageNumber - 1) * pageSize;
+
+      // =========================
       // Fetch Recipes
       // =========================
 
       const recipes = await RecipeService.findRecipes(
         whereClause,
-        orderByObj
+        orderByObj,
+        pageSize,
+        skip
       );
 
       return res.status(200).json({
         success: true,
         count: recipes.length,
+        page: pageNumber,
+        limit: pageSize,
         recipes,
       });
 
@@ -304,9 +318,11 @@ export const RecipeController = {
 
   async addFavorite(req: Request, res: Response) {
     try {
-      const { userId, recipeId } = req.body;
+      const user = await requireCommunityUser(req);
+      const userId = user.id;
+      const { recipeId } = req.body;
 
-      if (!userId || !recipeId) {
+      if (!recipeId) {
         return res.status(400).json({
           success: false,
           message: "userId and recipeId are required",
@@ -348,9 +364,11 @@ export const RecipeController = {
 
   async removeFavorite(req: Request, res: Response) {
     try {
-      const { userId, recipeId } = req.body;
+      const user = await requireCommunityUser(req);
+      const userId = user.id;
+      const { recipeId } = req.body;
 
-      if (!userId || !recipeId) {
+      if (!recipeId) {
         return res.status(400).json({
           success: false,
           message: "userId and recipeId are required",
@@ -418,9 +436,11 @@ export const RecipeController = {
 
   async createCollection(req: Request, res: Response) {
     try {
-      const { userId, name } = req.body;
+      const user = await requireCommunityUser(req);
+      const userId = user.id;
+      const { name } = req.body;
 
-      if (!userId || !name) {
+      if (!name) {
         return res.status(400).json({
           success: false,
           message: "UserId and name are required",
@@ -456,6 +476,8 @@ export const RecipeController = {
 
   async addRecipeToCollection(req: Request, res: Response) {
     try {
+      const user = await requireCommunityUser(req);
+      const userId = user.id;
       const { collectionId, recipeId } = req.body;
 
       if (!collectionId || !recipeId) {
@@ -465,10 +487,10 @@ export const RecipeController = {
         });
       }
 
-      const addedItem =
-        await RecipeService.addRecipeToCollection(
+      const addedItem = await RecipeService.addRecipeToCollection(
           String(collectionId),
-          String(recipeId)
+          String(recipeId),
+          userId
         );
 
       return res.status(201).json({
@@ -501,9 +523,11 @@ export const RecipeController = {
 
   async deleteCollection(req: Request, res: Response) {
     try {
-      const { collectionId, userId } = req.body;
+      const user = await requireCommunityUser(req);
+      const userId = user.id;
+      const { collectionId } = req.body;
 
-      if (!collectionId || !userId) {
+      if (!collectionId) {
         return res.status(400).json({
           success: false,
           message: "CollectionId and userId are required",

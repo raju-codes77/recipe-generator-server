@@ -1,6 +1,6 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
   moduleFormat = "cjs"
 }
 
@@ -9,14 +9,14 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String   @id @default(cuid())
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String   @unique
+  emailVerified Boolean  @default(false)
   image         String?
-  role          String?   @default("user")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  role          String?  @default("user")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   sessions     Session[]
   accounts     Account[]
@@ -28,15 +28,16 @@ model User {
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  expiresAt    DateTime
-  token        String   @unique
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  ipAddress    String?
-  userAgent    String?
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -54,7 +55,7 @@ model Account {
   refreshTokenExpiresAt DateTime?
   scope                 String?
   password              String?
-  issuer                String?   // <--- Ei field-ta add koro
+  issuer                String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -95,6 +96,9 @@ model Recipe {
   collectionRecipes CollectionRecipe[]
 
   @@index([userId])
+  @@index([createdAt])
+  @@index([rating])
+  @@index([time])
 }
 
 model Ingredient {
@@ -117,8 +121,6 @@ model Favorite {
 
   @@unique([userId, recipeId])
 }
-
-// NEW COLLECTION MODELS
 
 model Collection {
   id        String   @id @default(cuid())
@@ -172,7 +174,9 @@ model DailyEntry {
   @@index([userId])
 }
 
-// =================== COMMUNITY MODELS ===================
+// ======================================================
+// COMMUNITY MODELS
+// ======================================================
 
 model CommunityPost {
   id               String   @id @default(cuid())
@@ -191,6 +195,9 @@ model CommunityPost {
   @@index([authorId])
   @@index([recipeId])
   @@index([createdAt])
+  // Cursor pagination indexes
+  @@index([createdAt, id])
+  @@index([authorId, createdAt, id])
 }
 
 model CommunityComment {
@@ -203,6 +210,7 @@ model CommunityComment {
   updatedAt DateTime @updatedAt
 
   @@index([postId, createdAt])
+  @@index([postId, createdAt, id])
   @@index([userId])
   @@index([parentId])
 }
@@ -233,6 +241,7 @@ model CommunityReview {
   updatedAt          DateTime @updatedAt
 
   @@unique([postId, userId])
+  @@index([postId, createdAt, id])
   @@index([userId])
 }
 
@@ -321,6 +330,7 @@ model CommunityMessage {
   createdAt      DateTime @default(now())
 
   @@index([conversationId, createdAt])
+  @@index([conversationId, createdAt, id])
   @@index([recipientId, createdAt])
 }
 
