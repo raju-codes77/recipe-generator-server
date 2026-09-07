@@ -1,8 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { PrismaClient } from "./generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
 import recipeMatcherRoute from "./routes/recipeMatcher.route";
 import dotenv from "dotenv";
 import { toNodeHandler } from "better-auth/node";
@@ -14,6 +12,8 @@ import { GoogleGenAI } from "@google/genai";
 
 // Import Recipe Routes
 import recipeRoutes from "./src/recipe/recipe.routes";
+import userRoutes from "./src/routes/user.routes";
+import communityRoutes from "./src/community/community.routes";
 
 dotenv.config();
 
@@ -25,16 +25,19 @@ const upload = multer({ storage: multer.memoryStorage() });
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // Middleware
+app.use("/api/community", express.json({ limit: "10mb" }));
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: ["http://localhost:3000", "https://food-canvas.vercel.app"],
     credentials: true,
   })
 );
 
 // Better Auth MUST come before express.json()
 app.all("/api/auth/*splat", toNodeHandler(auth));
+
+app.use("/api/community", communityRoutes);
 
 // Other routes
 app.use(express.json());
@@ -51,7 +54,6 @@ app.post(
           message: "Meal image is required",
         });
       }
-
       const result = await analyzeMeal({
         buffer: req.file.buffer,
         originalName: req.file.originalname,
@@ -96,7 +98,8 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-// Recipe matcher AI routes → mounted under /api
+// Recipe matcher AI routes â†’ mounted under /api
+app.use("/api/users", userRoutes);
 app.use("/api", recipeMatcherRoute);
 
 // ================= AI CHATBOT ROUTE (GEMINI) =================
@@ -216,3 +219,10 @@ app.delete('/api/admin/users/:id', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
 });
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server started on port ${PORT}`);
+  });
+}
+
+module.exports = app;
