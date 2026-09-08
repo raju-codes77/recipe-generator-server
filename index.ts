@@ -1,48 +1,68 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import recipeMatcherRoute from "./routes/recipeMatcher.route";
-import dotenv from "dotenv";
-import { toNodeHandler } from "better-auth/node";
-import { auth } from "./src/lib/auth";
-import { prisma } from "./src/lib/prisma";
 import multer from "multer";
-import { analyzeMeal } from "./src/services/meal-analyze.service";
-import { GoogleGenAI } from "@google/genai";
+import { toNodeHandler } from "better-auth/node";
 
-// Import Recipe Routes
-import recipeRoutes from "./src/recipe/recipe.routes";
-import userRoutes from "./src/routes/user.routes";
-import communityRoutes from "./src/community/community.routes";
+import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
+import { auth } from "./src/lib/auth.js";
+import { prisma } from "./src/lib/prisma.js";
+import { analyzeMeal } from "./src/services/meal-analyze.service.js";
 
-dotenv.config();
+import recipeRoutes from "./src/recipe/recipe.routes.js";
+import userRoutes from "./src/routes/user.routes.js";
+import communityRoutes from "./src/community/community.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const upload = multer({ storage: multer.memoryStorage() });
 
-// Gemini Client Initialization using GEMINI_API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const upload = multer({
+  storage: multer.memoryStorage(),
+});
 
-// Middleware
-app.use("/api/community", express.json({ limit: "10mb" }));
-app.use(express.json());
+// ============================================
+// CORS
+// ============================================
+
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://food-canvas.vercel.app"],
+    origin: [
+      "http://localhost:3000",
+      "https://food-canvas.vercel.app",
+    ],
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Cookie",
+    ],
   })
 );
 
-// Better Auth MUST come before express.json()
+// ============================================
+// BETTER AUTH
+// IMPORTANT: Keep this BEFORE express.json()
+// ============================================
+
 app.all("/api/auth/*splat", toNodeHandler(auth));
+
+// ============================================
+// BODY PARSERS
+// ============================================
+
+app.use(express.json({ limit: "10mb" }));
+
+// ============================================
+// COMMUNITY
+// ============================================
 
 app.use("/api/community", communityRoutes);
 
-// Other routes
-app.use(express.json());
+// ============================================
+// MEAL ANALYSIS
+// ============================================
 
-// ================= MEAL ANALYSIS ROUTE =================
 app.post(
   "/api/meals/analyze",
   upload.single("image"),
@@ -73,17 +93,40 @@ app.post(
   }
 );
 
+// ============================================
+// HEALTH CHECK
+// ============================================
+
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
-// MOUNT RECIPE & RELATED ROUTES 
+// ============================================
+// RECIPE ROUTES
+// ============================================
+
 app.use("/api", recipeRoutes);
 
-// DB Test
+// ============================================
+// USER ROUTES
+// ============================================
+
+app.use("/api/users", userRoutes);
+
+// ============================================
+// RECIPE MATCHER AI
+// ============================================
+
+app.use("/api", recipeMatcherRoute);
+
+// ============================================
+// DATABASE TEST
+// ============================================
+
 app.get("/db-test", async (req, res) => {
   try {
     const users = await prisma.user.findMany();
+
     res.json({
       success: true,
       message: "Database connected successfully",
@@ -91,6 +134,7 @@ app.get("/db-test", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       success: false,
       message: "Database connection request failed",
@@ -98,131 +142,14 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-// Recipe matcher AI routes â†’ mounted under /api
-app.use("/api/users", userRoutes);
-app.use("/api", recipeMatcherRoute);
+// ============================================
+// LOCAL SERVER
+// ============================================
 
-// ================= AI CHATBOT ROUTE (GEMINI) =================
-
-// ================= AI CHATBOT ROUTE (GEMINI) =================
-app.post('/api/chat', async (req, res) => {
-  try {
-    const { message, prompt } = req.body;
-    const userMessage = message || prompt;
-
-    if (!userMessage) {
-      return res.status(400).json({ success: false, message: "Message is required." });
-    }
-
-    await prisma.chatMessage.create({
-      data: {
-        role: "user",
-        content: userMessage.trim(),
-      },
-    });
-
-    // 1. our website map or overview for the new users
-    const siteMapContext = `
-    You are FoodCanvas's AI Assistant. Your job is to help users navigate the website and find features.
-    Here is a map of the website pages and what they contain:
-    - AI Recipe Generator (/dashboard/users/ai-recipe): Create recipes using ingredients available at home.
-    - Nutrition Insights (/dashboard/users/nutrition): Track daily calorie intake and nutritional metrics.
-    - Foodie Community (/dashboard/users/community): Share meals, get inspiration, and connect with other food lovers.
-    - User Dashboard (/dashboard/users): General overview for regular users.
-    - Admin Dashboard (/dashboard/admin): Management panel restricted to administrators.
-
-    Always guide users nicely, tell them what is on each page, and provide direct paths/links when they ask where to find something. Be helpful, warm, and concise.
-    `;
-
-    // 2.jemini system instruction
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: [
-        { role: 'user', parts: [{ text: siteMapContext }] }, 
-        { role: 'user', parts: [{ text: userMessage.trim() }] } 
-      ],
-    });
-
-    const reply = response.text || "I couldn't process that query.";
-
-    await prisma.chatMessage.create({
-      data: {
-        role: "assistant",
-        content: reply,
-      },
-    });
-
-    return res.json({ success: true, reply });
-  } catch (error: any) {
-    console.error("AI Chat Error:", error);
-    return res.status(500).json({ success: false, reply: "AI core transmission failure. Try again." });
-  }
-});
-
-// ================= 1. GET ALL USERS (Admin Only) =================
-app.get('/api/admin/users', async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return res.json({ success: true, users });
-  } catch (error) {
-    console.error("Fetch Users Error:", error);
-    return res.status(500).json({ success: false, message: "Failed to fetch users." });
-  }
-});
-
-// ================= 2. UPDATE USER STATUS (Suspend / Activate) =================
-app.patch('/api/admin/users/:id/status', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body; // "ACTIVE" বা "SUSPENDED"
-
-    const updatedUser = await prisma.user.update({
-      where: { id },
-      data: { status },
-    });
-
-    return res.json({ success: true, message: `User status updated to ${status}`, updatedUser });
-  } catch (error) {
-    console.error("Update Status Error:", error);
-    return res.status(500).json({ success: false, message: "Failed to update user status." });
-  }
-});
-
-// ================= 3. DELETE USER =================
-app.delete('/api/admin/users/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await prisma.user.delete({
-      where: { id },
-    });
-
-    return res.json({ success: true, message: "User deleted successfully." });
-  } catch (error) {
-    console.error("Delete User Error:", error);
-    return res.status(500).json({ success: false, message: "Failed to delete user." });
-  }
-});
-
-
-app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
-});
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
   });
 }
 
-module.exports = app;
+export default app;
