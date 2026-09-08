@@ -4,7 +4,6 @@ import cors from "cors";
 import multer from "multer";
 import { toNodeHandler } from "better-auth/node";
 
-import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
 import { auth } from "./src/lib/auth.js";
 import { prisma } from "./src/lib/prisma.js";
 import { analyzeMeal } from "./src/services/meal-analyze.service.js";
@@ -12,6 +11,8 @@ import { analyzeMeal } from "./src/services/meal-analyze.service.js";
 import recipeRoutes from "./src/recipe/recipe.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
 import communityRoutes from "./src/community/community.routes.js";
+import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
+import pantryRoutes from "./routes/pantryRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -74,6 +75,7 @@ app.post(
           message: "Meal image is required",
         });
       }
+
       const result = await analyzeMeal({
         buffer: req.file.buffer,
         originalName: req.file.originalname,
@@ -112,6 +114,12 @@ app.use("/api", recipeRoutes);
 // ============================================
 
 app.use("/api/users", userRoutes);
+
+// ============================================
+// PANTRY-TO-PLATE ROUTES
+// ============================================
+
+app.use("/api/pantry-to-plate", pantryRoutes);
 
 // ============================================
 // RECIPE MATCHER AI
