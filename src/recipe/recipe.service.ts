@@ -1,17 +1,26 @@
-import { prisma } from "../lib/prisma";
+
+import { prisma } from "../lib/prisma.js";
 
 export const RecipeService = {
   // =========================
   // Find Recipes
   // =========================
 
-  async findRecipes(whereClause: any, orderByObj: any) {
+  async findRecipes(whereClause: any, orderByObj: any, take: number, skip: number) {
     return await prisma.recipe.findMany({
       where: whereClause,
       orderBy: orderByObj,
+      take,
+      skip,
       include: {
         ingredients: true,
-        user: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          }
+        },
       },
     });
   },
@@ -23,6 +32,7 @@ export const RecipeService = {
   async findRecipeById(id: string) {
     return await prisma.recipe.findUnique({
       where: { id },
+
       include: {
         ingredients: true,
         user: true,
@@ -113,7 +123,16 @@ export const RecipeService = {
       include: {
         recipes: {
           include: {
-            recipe: true,
+            recipe: {
+              select: {
+                id: true,
+                title: true,
+                image: true,
+                time: true,
+                calories: true,
+                rating: true,
+              }
+            },
           },
         },
       },
@@ -142,8 +161,17 @@ export const RecipeService = {
 
   async addRecipeToCollection(
     collectionId: string,
-    recipeId: string
+    recipeId: string,
+    userId: string
   ) {
+    const collection = await prisma.collection.findUnique({
+      where: { id: collectionId },
+    });
+
+    if (!collection || collection.userId !== userId) {
+      throw new Error("Unauthorized or collection not found");
+    }
+
     return await prisma.collectionRecipe.create({
       data: {
         collectionId,

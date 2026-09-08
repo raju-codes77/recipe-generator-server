@@ -1,8 +1,10 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { prisma } from "./prisma";
+import { prisma } from "./prisma.js";
 
 export const auth = betterAuth({
+  baseURL: process.env.BETTER_AUTH_URL,
+
   trustedOrigins: [
     "http://localhost:3000",
     "https://food-canvas.vercel.app",
@@ -13,10 +15,6 @@ export const auth = betterAuth({
   }),
 
   advanced: {
-    crossSubDomainCookies: {
-      enabled: true,
-    },
-
     defaultCookieAttributes: {
       sameSite: "none",
       secure: true,

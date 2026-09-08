@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
-import { getOptionalCommunityUser, requireCommunityUser } from "./community.auth";
-import { communityService } from "./community.service";
-import { uploadCommunityImage } from "./community-storage.service";
-import { parsePostInput, parseRating, parseRequiredText } from "./community.validation";
-import { prisma } from "../lib/prisma";
+import { getOptionalCommunityUser, requireCommunityUser } from "./community.auth.js";
+import { communityService } from "./community.service.js";
+import { uploadCommunityImage } from "./community-storage.service.js";
+import { parsePostInput, parseRating, parseRequiredText } from "./community.validation.js";
+import { prisma } from "../lib/prisma.js";
 
 type Handler = (req: Request, res: Response) => Promise<unknown>;
 

@@ -1,4 +1,4 @@
-import type { CreateCommunityPostInput } from "./community.types";
+import type { CreateCommunityPostInput } from "./community.types.js";
 
 export const TEXT_ONLY_POST_IMAGE = "__foodcanvas_text_only__";
 

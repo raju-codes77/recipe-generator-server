@@ -1,5 +1,5 @@
 import { Router, json } from "express";
-import { communityController } from "./community.controller";
+import { communityController } from "./community.controller.js";
 
 const router = Router();
 router.use(json({ limit: "9mb" }));
@@ -47,8 +47,8 @@ router.use(
     res: { status: (code: number) => { json: (body: unknown) => void } },
     _next: unknown,
   ) => {
+    console.error("Community API Error:", error);
     const status = error.statusCode || 500;
-    if (status === 500) console.error(error);
     res.status(status).json({ message: status === 500 ? "Community request failed" : error.message });
   },
 );
