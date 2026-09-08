@@ -1,6 +1,6 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
   moduleFormat = "cjs"
 }
 
@@ -15,6 +15,7 @@ model User {
   emailVerified Boolean      @default(false)
   image         String?
   role          String?      @default("user")
+  status        String       @default("ACTIVE")
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -25,6 +26,14 @@ model User {
   collections  Collection[]
   goal         UserGoal?
   dailyEntries DailyEntry[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String?  // if user loged in and show id( it's optional)
+  role      String   // "user" অথবা "assistant"
+  content   String   // chat messege or recipe
+  createdAt DateTime @default(now())
 }
 
 model Session {
@@ -93,6 +102,9 @@ model Recipe {
   user              User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([createdAt])
+  @@index([rating])
+  @@index([time])
 }
 
 model Ingredient {
@@ -164,7 +176,9 @@ model DailyEntry {
   @@index([userId])
 }
 
-// =================== COMMUNITY MODELS ===================
+// ======================================================
+// COMMUNITY MODELS
+// ======================================================
 
 model CommunityPost {
   id               String   @id @default(cuid())
@@ -183,6 +197,9 @@ model CommunityPost {
   @@index([authorId])
   @@index([recipeId])
   @@index([createdAt])
+  // Cursor pagination indexes
+  @@index([createdAt, id])
+  @@index([authorId, createdAt, id])
 }
 
 model CommunityComment {
@@ -195,6 +212,7 @@ model CommunityComment {
   updatedAt DateTime @updatedAt
 
   @@index([postId, createdAt])
+  @@index([postId, createdAt, id])
   @@index([userId])
   @@index([parentId])
 }
@@ -225,6 +243,7 @@ model CommunityReview {
   updatedAt          DateTime @updatedAt
 
   @@unique([postId, userId])
+  @@index([postId, createdAt, id])
   @@index([userId])
 }
 
@@ -313,6 +332,7 @@ model CommunityMessage {
   createdAt      DateTime @default(now())
 
   @@index([conversationId, createdAt])
+  @@index([conversationId, createdAt, id])
   @@index([recipientId, createdAt])
 }
 

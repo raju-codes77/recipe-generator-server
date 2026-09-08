@@ -1,25 +1,18 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { PrismaClient } from "./generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import recipeMatcherRoute from "./routes/recipeMatcher.route";
-import dotenv from "dotenv";
-import { toNodeHandler } from "better-auth/node";
-import { auth } from "./src/lib/auth";
-import { prisma } from "./src/lib/prisma";
-import { analyzeMeal } from "./src/services/meal-analyze.service";
-
-// Import Recipe Routes
-import recipeRoutes from "./src/recipe/recipe.routes";
-import userRoutes from "./src/routes/user.routes";
-import communityRoutes from "./src/community/community.routes";
-
-// Import Pantry-to-Plate Routes
-import pantryRoutes from "./routes/pantryRoutes";
 import multer from "multer";
+import { toNodeHandler } from "better-auth/node";
 
-dotenv.config();
+import { auth } from "./src/lib/auth.js";
+import { prisma } from "./src/lib/prisma.js";
+import { analyzeMeal } from "./src/services/meal-analyze.service.js";
+
+import recipeRoutes from "./src/recipe/recipe.routes.js";
+import userRoutes from "./src/routes/user.routes.js";
+import communityRoutes from "./src/community/community.routes.js";
+import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
+import pantryRoutes from "./routes/pantryRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -28,26 +21,48 @@ const upload = multer({
   storage: multer.memoryStorage(),
 });
 
-// Middleware
-app.use("/api/community", express.json({ limit: "10mb" }));
-app.use(express.json());
+// ============================================
+// CORS
+// ============================================
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://food-canvas.vercel.app"],
+    origin: [
+      "http://localhost:3000",
+      "https://food-canvas.vercel.app",
+    ],
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Cookie",
+    ],
   })
 );
 
-// Better Auth
+// ============================================
+// BETTER AUTH
+// IMPORTANT: Keep this BEFORE express.json()
+// ============================================
+
 app.all("/api/auth/*splat", toNodeHandler(auth));
+
+// ============================================
+// BODY PARSERS
+// ============================================
+
+app.use(express.json({ limit: "10mb" }));
+
+// ============================================
+// COMMUNITY
+// ============================================
 
 app.use("/api/community", communityRoutes);
 
-// Other routes
-app.use(express.json());
-
-// ================= MEAL ANALYSIS ROUTE =================
+// ============================================
+// MEAL ANALYSIS
+// ============================================
 
 app.post(
   "/api/meals/analyze",
@@ -80,26 +95,41 @@ app.post(
   }
 );
 
-// Health check
+// ============================================
+// HEALTH CHECK
+// ============================================
+
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
-// ================= ROUTES =================
+// ============================================
+// RECIPE ROUTES
+// ============================================
 
-// Recipe routes
 app.use("/api", recipeRoutes);
 
-// User routes
+// ============================================
+// USER ROUTES
+// ============================================
+
 app.use("/api/users", userRoutes);
 
-// Pantry-to-Plate routes
+// ============================================
+// PANTRY-TO-PLATE ROUTES
+// ============================================
+
 app.use("/api/pantry-to-plate", pantryRoutes);
 
-// Recipe matcher AI routes
+// ============================================
+// RECIPE MATCHER AI
+// ============================================
+
 app.use("/api", recipeMatcherRoute);
 
-// ================= DB TEST =================
+// ============================================
+// DATABASE TEST
+// ============================================
 
 app.get("/db-test", async (req, res) => {
   try {
@@ -120,12 +150,14 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-// ================= SERVER =================
+// ============================================
+// LOCAL SERVER
+// ============================================
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
   });
 }
 
-module.exports = app;
+export default app;
