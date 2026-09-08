@@ -16,6 +16,10 @@ model User {
   image         String?
   role          String?      @default("user")
   status        String       @default("ACTIVE")
+  bio           String?
+  coverImage    String?
+  interests     String[]
+  location      String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -191,6 +195,7 @@ model CommunityPost {
   isChallengeEntry Boolean  @default(false)
   challengeName    String?
   isPinned         Boolean  @default(false)
+  sharedFromId     String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
