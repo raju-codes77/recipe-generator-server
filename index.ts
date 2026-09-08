@@ -74,7 +74,6 @@ app.post(
           message: "Meal image is required",
         });
       }
-
       const result = await analyzeMeal({
         buffer: req.file.buffer,
         originalName: req.file.originalname,
