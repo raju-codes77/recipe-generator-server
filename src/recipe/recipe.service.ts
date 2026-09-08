@@ -1,44 +1,38 @@
-import { prisma } from "../lib/prisma";
+
+import { prisma } from "../lib/prisma.js";
+
 export const RecipeService = {
-  async getRecipeCount() {
-    return await prisma.recipe.count();
-  },
+  // =========================
+  // Find Recipes
+  // =========================
 
-  // external API recipes seeding
-  async seedExternalRecipes(meals: any[]) {
-    for (const meal of meals) {
-      await prisma.recipe.create({
-        data: {
-          title: meal.strMeal,
-          image: meal.strMealThumb,
-          cuisine: meal.strArea || "General",
-          category: meal.strCategory || "Main Course",
-          time: 30,
-          calories: 400,
-          rating: 4.5,
-          
-        },
-      }).catch(() => {}); 
-    }
-  },
-
-  // filtering and sorting recipes
-  async findRecipes(whereClause: any, orderByObj: any, limit?: number) {
+  async findRecipes(whereClause: any, orderByObj: any, take: number, skip: number) {
     return await prisma.recipe.findMany({
       where: whereClause,
       orderBy: orderByObj,
-      ...(limit ? { take: limit } : {}),
+      take,
+      skip,
       include: {
         ingredients: true,
-        user: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          }
+        },
       },
     });
   },
 
-  //  Newly Added: Find a Single Recipe by ID
+  // =========================
+  // Find Single Recipe
+  // =========================
+
   async findRecipeById(id: string) {
     return await prisma.recipe.findUnique({
       where: { id },
+
       include: {
         ingredients: true,
         user: true,
@@ -46,84 +40,159 @@ export const RecipeService = {
     });
   },
 
-  // user favorites with recipe ids
+  // =========================
+  // User Favorites
+  // =========================
+
   async getUserFavorites(userId: string) {
     return await prisma.favorite.findMany({
       where: { userId },
-      select: { recipeId: true },
+      select: {
+        recipeId: true,
+      },
     });
   },
 
-  // user collections with recipes
+  // =========================
+  // User Collections
+  // =========================
+
   async getUserCollections(userId: string) {
     return await prisma.collection.findMany({
       where: { userId },
       include: {
         recipes: {
-          select: { recipeId: true },
+          select: {
+            recipeId: true,
+          },
         },
       },
     });
   },
 
-  // favorite check
+  // =========================
+  // Check Favorite
+  // =========================
+
   async checkFavorite(userId: string, recipeId: string) {
     return await prisma.favorite.findUnique({
       where: {
-        userId_recipeId: { userId, recipeId },
+        userId_recipeId: {
+          userId,
+          recipeId,
+        },
       },
     });
   },
 
-  // favorite add
+  // =========================
+  // Add Favorite
+  // =========================
+
   async addFavorite(userId: string, recipeId: string) {
     return await prisma.favorite.create({
-      data: { userId, recipeId },
+      data: {
+        userId,
+        recipeId,
+      },
     });
   },
 
-  // favorite remove
+  // =========================
+  // Remove Favorite
+  // =========================
+
   async removeFavorite(userId: string, recipeId: string) {
     return await prisma.favorite.delete({
       where: {
-        userId_recipeId: { userId, recipeId },
+        userId_recipeId: {
+          userId,
+          recipeId,
+        },
       },
     });
   },
 
-  // collection filtering
+  // =========================
+  // Get Collections
+  // =========================
+
   async getCollections(userId: string) {
     return await prisma.collection.findMany({
       where: { userId },
       include: {
         recipes: {
           include: {
-            recipe: true,
+            recipe: {
+              select: {
+                id: true,
+                title: true,
+                image: true,
+                time: true,
+                calories: true,
+                rating: true,
+              }
+            },
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
   },
 
-  // create collection
+  // =========================
+  // Create Collection
+  // =========================
+
   async createCollection(userId: string, name: string) {
     return await prisma.collection.create({
-      data: { userId, name },
+      data: {
+        userId,
+        name,
+      },
     });
   },
 
-// add recipe to collection
-  async addRecipeToCollection(collectionId: string, recipeId: string) {
+  // =========================
+  // Add Recipe To Collection
+  // =========================
+
+  async addRecipeToCollection(
+    collectionId: string,
+    recipeId: string,
+    userId: string
+  ) {
+    const collection = await prisma.collection.findUnique({
+      where: { id: collectionId },
+    });
+
+    if (!collection || collection.userId !== userId) {
+      throw new Error("Unauthorized or collection not found");
+    }
+
     return await prisma.collectionRecipe.create({
-      data: { collectionId, recipeId },
+      data: {
+        collectionId,
+        recipeId,
+      },
     });
   },
 
-//  delete collection
-  async deleteCollection(collectionId: string, userId: string) {
+  // =========================
+  // Delete Collection
+  // =========================
+
+  async deleteCollection(
+    collectionId: string,
+    userId: string
+  ) {
     return await prisma.collection.delete({
-      where: { id: collectionId, userId },
+      where: {
+        id: collectionId,
+        userId,
+      },
     });
   },
 };

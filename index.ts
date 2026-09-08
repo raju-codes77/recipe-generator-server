@@ -1,49 +1,74 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { PrismaClient } from "./generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import recipeMatcherRoute from "./routes/recipeMatcher.route";
-import dotenv from "dotenv";
-import { toNodeHandler } from "better-auth/node";
-import { auth } from "./src/lib/auth";
-import { prisma } from "./src/lib/prisma";
 import multer from "multer";
-import { analyzeMeal } from "./src/services/meal-analyze.service";
+import { toNodeHandler } from "better-auth/node";
 
-// Import Recipe Routes
-import recipeRoutes from "./src/recipe/recipe.routes";
+import { auth } from "./src/lib/auth.js";
+import { prisma } from "./src/lib/prisma.js";
+import { analyzeMeal } from "./src/services/meal-analyze.service.js";
 
-dotenv.config();
+import recipeRoutes from "./src/recipe/recipe.routes.js";
+import userRoutes from "./src/routes/user.routes.js";
+import communityRoutes from "./src/community/community.routes.js";
+import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
+import pantryRoutes from "./routes/pantryRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const upload = multer({ storage: multer.memoryStorage() });
 
-// Middleware
-app.use(express.json());
-// cors
+const upload = multer({
+  storage: multer.memoryStorage(),
+});
+
+// ============================================
+// CORS
+// ============================================
+
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      "https://food-canvas.vercel.app",
+    ],
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Cookie",
+    ],
   })
 );
 
-// Better Auth MUST come before express.json()
+// ============================================
+// BETTER AUTH
+// IMPORTANT: Keep this BEFORE express.json()
+// ============================================
+
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
-// Other routes
-app.use(express.json());
+// ============================================
+// BODY PARSERS
+// ============================================
 
-// ================= MEAL ANALYSIS ROUTE =================
+app.use(express.json({ limit: "10mb" }));
+
+// ============================================
+// COMMUNITY
+// ============================================
+
+app.use("/api/community", communityRoutes);
+
+// ============================================
+// MEAL ANALYSIS
+// ============================================
 
 app.post(
   "/api/meals/analyze",
   upload.single("image"),
   async (req, res) => {
     try {
-      // Check if image was uploaded
       if (!req.file) {
         return res.status(400).json({
           success: false,
@@ -51,14 +76,12 @@ app.post(
         });
       }
 
-      // Send image to Gemini for food analysis
       const result = await analyzeMeal({
         buffer: req.file.buffer,
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
       });
 
-      // Return analysis result to client
       return res.status(200).json(result);
     } catch (error: any) {
       console.error("Meal Analysis Error:", error);
@@ -72,17 +95,46 @@ app.post(
   }
 );
 
+// ============================================
+// HEALTH CHECK
+// ============================================
+
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
-//  MOUNT RECIPE & RELATED ROUTES 
+// ============================================
+// RECIPE ROUTES
+// ============================================
+
 app.use("/api", recipeRoutes);
 
-// DB Test
+// ============================================
+// USER ROUTES
+// ============================================
+
+app.use("/api/users", userRoutes);
+
+// ============================================
+// PANTRY-TO-PLATE ROUTES
+// ============================================
+
+app.use("/api/pantry-to-plate", pantryRoutes);
+
+// ============================================
+// RECIPE MATCHER AI
+// ============================================
+
+app.use("/api", recipeMatcherRoute);
+
+// ============================================
+// DATABASE TEST
+// ============================================
+
 app.get("/db-test", async (req, res) => {
   try {
     const users = await prisma.user.findMany();
+
     res.json({
       success: true,
       message: "Database connected successfully",
@@ -90,6 +142,7 @@ app.get("/db-test", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+
     res.status(500).json({
       success: false,
       message: "Database connection request failed",
@@ -97,9 +150,14 @@ app.get("/db-test", async (req, res) => {
   }
 });
 
-// Recipe matcher AI routes → mounted under /api
-app.use("/api", recipeMatcherRoute);
+// ============================================
+// LOCAL SERVER
+// ============================================
 
-app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== "production") {
+  app.listen(PORT, () => {
+    console.log(`Server started on port ${PORT}`);
+  });
+}
+
+export default app;
