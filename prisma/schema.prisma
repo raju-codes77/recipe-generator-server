@@ -14,14 +14,14 @@ model User {
   email         String       @unique
   emailVerified Boolean      @default(false)
   image         String?
-  role          String?      @default("user")
-  status        String       @default("ACTIVE")
+  role          String?   @default("user")
+  status        String    @default("ACTIVE")
   bio           String?
-  coverImage    String?
-  interests     String[]
   location      String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  interests     String[]  @default([])
+  coverImage    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   sessions     Session[]
   accounts     Account[]
@@ -191,16 +191,20 @@ model CommunityPost {
   imageUrl         String
   additionalImages Json?
   recipeId         String?
+  sharedFromId     String?
   tags             String[]
   isChallengeEntry Boolean  @default(false)
   challengeName    String?
   isPinned         Boolean  @default(false)
-  sharedFromId     String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  @@index([authorId])
+  sharedFrom       CommunityPost?  @relation("CommunityPostShare", fields: [sharedFromId], references: [id], onDelete: SetNull)
+  shares           CommunityPost[] @relation("CommunityPostShare")
+
+  @@index([authorId, isPinned, createdAt])
   @@index([recipeId])
+  @@index([sharedFromId])
   @@index([createdAt])
   // Cursor pagination indexes
   @@index([createdAt, id])
@@ -305,8 +309,19 @@ model CommunityStory {
   createdAt DateTime @default(now())
   expiresAt DateTime
 
-  @@index([authorId])
+  @@index([authorId, expiresAt])
   @@index([expiresAt])
+}
+
+model CommunityStoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  @@unique([storyId, viewerId])
+  @@index([storyId, viewedAt])
+  @@index([viewerId])
 }
 
 model CommunityConversation {
