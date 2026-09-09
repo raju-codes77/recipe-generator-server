@@ -13,6 +13,7 @@ import userRoutes from "./src/routes/user.routes.js";
 import communityRoutes from "./src/community/community.routes.js";
 import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
 import pantryRoutes from "./routes/pantryRoutes.js";
+import challengeRoutes from "./src/routes/challenge.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -120,6 +121,12 @@ app.use("/api/users", userRoutes);
 // ============================================
 
 app.use("/api/pantry-to-plate", pantryRoutes);
+
+// ============================================
+// CHALLENGE ROUTES
+// ============================================
+
+app.use("/api/challenges", challengeRoutes);
 
 // ============================================
 // RECIPE MATCHER AI

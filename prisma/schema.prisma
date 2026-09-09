@@ -24,6 +24,9 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   sessions     Session[]
+  challengeParticipants ChallengeParticipant[]
+  challengeSubmissions  ChallengeSubmission[]
+  userBadges            UserBadge[]
   accounts     Account[]
   favorites    Favorite[]
   recipes      Recipe[]
@@ -406,4 +409,105 @@ model PantryRecipe {
   userId          String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// ======================================================
+// CHALLENGE & GAMIFICATION MODELS
+// ======================================================
+
+model Challenge {
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  durationDays  Int      @default(7)
+  difficulty    String   @default("Beginner")
+  rewardPoints  Int      @default(100)
+  coverImage    String?
+  isFeatured    Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  days          ChallengeDay[]
+  participants  ChallengeParticipant[]
+}
+
+model ChallengeDay {
+  id          String   @id @default(cuid())
+  challengeId String
+  dayNumber   Int
+  title       String
+  description String
+  mealId      String?  // TheMealDB ID if applicable
+  recipeName  String?
+
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  submissions ChallengeSubmission[]
+
+  @@unique([challengeId, dayNumber])
+  @@index([challengeId])
+}
+
+model ChallengeParticipant {
+  id          String   @id @default(cuid())
+  challengeId String
+  userId      String
+  status               String    @default("ACTIVE") // ACTIVE, COMPLETED, DROPPED, EXPIRED
+  joinedAt             DateTime  @default(now())
+  completedAt          DateTime?
+  lastCompletedAt      DateTime?
+  currentDay           Int       @default(1)
+  completedDays        Int       @default(0)
+  totalDays            Int       @default(0)
+  completionPercentage Int       @default(0)
+  currentStreak        Int       @default(0)
+  longestStreak        Int       @default(0)
+  progress             Int       @default(0) // Legacy / generic metric
+
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, userId])
+  @@index([userId])
+}
+
+model ChallengeSubmission {
+  id             String   @id @default(cuid())
+  challengeDayId String
+  userId         String
+  imageUrl       String
+  notes          String?
+  aiEstimatedKcal Int?
+  aiEstimatedProtein Int?
+  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  submittedAt    DateTime @default(now())
+
+  challengeDay   ChallengeDay @relation(fields: [challengeDayId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeDayId, userId])
+  @@index([userId])
+}
+
+model Badge {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  iconUrl     String
+  createdAt   DateTime @default(now())
+
+  userBadges  UserBadge[]
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId])
 }
