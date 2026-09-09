@@ -19,11 +19,28 @@ export const communityController = {
     const user = await getOptionalCommunityUser(req);
     const rawTake = Number(req.query.take);
     const rawSkip = Number(req.query.skip);
-  res.json(
-    await communityService.listPosts(user?.id, {
-      take: Number.isFinite(rawTake) ? rawTake : undefined,
-    })
-  );
+    const requestedFilter = typeof req.query.filter === "string" ? req.query.filter : "all";
+    const filter = ["all", "trending", "following", "quick", "wellness", "challenge", "ai_sparks", "saved", "liked"].includes(requestedFilter)
+      ? requestedFilter as "all" | "trending" | "following" | "quick" | "wellness" | "challenge" | "ai_sparks" | "saved" | "liked"
+      : "all";
+    res.json({
+      posts: await communityService.listPosts(user?.id, {
+        take: Number.isFinite(rawTake) ? rawTake : undefined,
+        skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+        filter,
+        excludePinned: true,
+      }),
+    });
+  }),
+
+  listSuggestedChefs: handle(async (req, res) => {
+    const user = await getOptionalCommunityUser(req);
+    res.json({ chefs: await communityService.listSuggestedChefs(user?.id) });
+  }),
+
+  getFeedCounts: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json(await communityService.getFeedCounts(user.id));
   }),
 
   getPostInteractions: handle(async (req, res) => {
@@ -55,6 +72,7 @@ export const communityController = {
     await communityService.updatePost(user.id, param(req.params.postId), {
       caption: req.body.caption ? parseRequiredText(req.body.caption, "Caption", 3000) : undefined,
       tags: Array.isArray(req.body.tags) ? req.body.tags.map(String).slice(0, 12) : undefined,
+      isPinned: typeof req.body.isPinned === "boolean" ? req.body.isPinned : undefined,
     });
 
     res.json({ success: true });
@@ -144,14 +162,44 @@ export const communityController = {
     res.json(await communityService.toggleFollow(user.id, param(req.params.userId)));
   }),
 
+  sharePost: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.status(201).json({ post: await communityService.sharePost(user.id, param(req.params.postId), typeof req.body?.caption === "string" ? req.body.caption : undefined) });
+  }),
+
+  listConnections: handle(async (req, res) => {
+    const viewer = await getOptionalCommunityUser(req);
+    const type = req.query.type === "followers" ? "followers" : "following";
+    res.json({ users: await communityService.listConnections(param(req.params.userId), type, viewer?.id) });
+  }),
+
   getPublicProfile: handle(async (req, res) => {
     const viewer = await getOptionalCommunityUser(req);
-    res.json({ profile: await communityService.getPublicProfile(param(req.params.userId), viewer?.id) });
+    const rawTake = Number(req.query.take);
+    const rawSkip = Number(req.query.skip);
+    res.json({
+      profile: await communityService.getPublicProfile(param(req.params.userId), viewer?.id, {
+        take: Number.isFinite(rawTake) ? rawTake : undefined,
+        skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+      }),
+    });
   }),
 
   listCollections: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
     res.json({ collections: await communityService.listCollections(user.id) });
+  }),
+
+  listSavedPosts: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    const rawTake = Number(req.query.take);
+    const rawSkip = Number(req.query.skip);
+    res.json({
+      ...(await communityService.listSavedPosts(user.id, {
+        take: Number.isFinite(rawTake) ? rawTake : undefined,
+        skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+      })),
+    });
   }),
 
   createCollection: handle(async (req, res) => {
@@ -184,7 +232,7 @@ export const communityController = {
     const story = await communityService.createStory(
       user.id,
       parseRequiredText(req.body.imageUrl, "Story image"),
-      parseRequiredText(req.body.caption, "Caption", 500),
+      req.body.caption ? parseRequiredText(req.body.caption, "Caption", 500) : "",
       req.body.tag
     );
 
@@ -196,6 +244,21 @@ export const communityController = {
     await communityService.deleteStory(user.id, param(req.params.storyId));
 
     res.status(204).end();
+  }),
+
+  recordStoryView: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json({ viewed: await communityService.recordStoryView(user.id, param(req.params.storyId)) });
+  }),
+
+  listStoryViewers: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json({ viewers: await communityService.listStoryViewers(user.id, param(req.params.storyId)) });
+  }),
+
+  updateMyProfile: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json({ profile: await communityService.updateProfile(user.id, req.body) });
   }),
 
   listNotifications: handle(async (req, res) => {
@@ -260,7 +323,7 @@ export const communityController = {
   upload: handle(async (req, res) => {
     await requireCommunityUser(req);
 
-    const folder = req.body.folder === "stories" ? "stories" : "posts";
+    const folder = req.body.folder === "stories" ? "stories" : req.body.folder === "profiles" ? "profiles" : "posts";
 
     res.status(201).json({
       url: await uploadCommunityImage(

@@ -26,6 +26,9 @@ import { analyzeMeal } from "./src/services/meal-analyze.service.js";
 import recipeRoutes from "./src/recipe/recipe.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
 import communityRoutes from "./src/community/community.routes.js";
+import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
+import pantryRoutes from "./routes/pantryRoutes.js";
+import challengeRoutes from "./src/routes/challenge.routes.js";
 
 // ============================================
 // ADMIN & AI ROUTES
@@ -139,6 +142,18 @@ app.use("/api", recipeRoutes);
 // ============================================
 
 app.use("/api/users", userRoutes);
+
+// ============================================
+// PANTRY-TO-PLATE ROUTES
+// ============================================
+
+app.use("/api/pantry-to-plate", pantryRoutes);
+
+// ============================================
+// CHALLENGE ROUTES
+// ============================================
+
+app.use("/api/challenges", challengeRoutes);
 
 // ============================================
 // RECIPE MATCHER AI
