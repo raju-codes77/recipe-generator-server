@@ -4,9 +4,24 @@ import cors from "cors";
 import multer from "multer";
 import { toNodeHandler } from "better-auth/node";
 
+import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
+
+// ============================================
+// AUTH & DATABASE
+// ============================================
+
 import { auth } from "./src/lib/auth.js";
 import { prisma } from "./src/lib/prisma.js";
+
+// ============================================
+// SERVICES
+// ============================================
+
 import { analyzeMeal } from "./src/services/meal-analyze.service.js";
+
+// ============================================
+// EXISTING ROUTES
+// ============================================
 
 import recipeRoutes from "./src/recipe/recipe.routes.js";
 import userRoutes from "./src/routes/user.routes.js";
@@ -14,6 +29,17 @@ import communityRoutes from "./src/community/community.routes.js";
 import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
 import pantryRoutes from "./routes/pantryRoutes.js";
 import challengeRoutes from "./src/routes/challenge.routes.js";
+
+// ============================================
+// ADMIN & AI ROUTES
+// ============================================
+
+// User CRUD operations
+import adminUserRoutes from "./routes/admin-user.route.js";
+
+// Gemini AI Chatbot route
+import aiChatRoutes from "./routes/ai-chat.routes.js";
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -84,6 +110,7 @@ app.post(
       });
 
       return res.status(200).json(result);
+
     } catch (error: any) {
       console.error("Meal Analysis Error:", error);
 
@@ -135,6 +162,26 @@ app.use("/api/challenges", challengeRoutes);
 app.use("/api", recipeMatcherRoute);
 
 // ============================================
+// ADMIN USER CRUD ROUTES
+// ============================================
+
+// Handles:
+// GET    /api/admin/users
+// PATCH  /api/admin/users/:id/status
+// DELETE /api/admin/users/:id
+
+app.use("/api/admin", adminUserRoutes);
+
+// ============================================
+// GEMINI AI CHATBOT ROUTES
+// ============================================
+
+// Handles:
+// POST /api/chat
+
+app.use("/api", aiChatRoutes);
+
+// ============================================
 // DATABASE TEST
 // ============================================
 
@@ -147,6 +194,7 @@ app.get("/db-test", async (req, res) => {
       message: "Database connected successfully",
       users,
     });
+
   } catch (error) {
     console.error(error);
 
