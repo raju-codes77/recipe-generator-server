@@ -33,6 +33,9 @@ model User {
   userBadges            UserBadge[]
   goal                  UserGoal?
   tasteProfile          TasteProfile?
+  mealLogs              MealLog[]
+  pantryItems           PantryItem[]
+  mealProfile           MealProfile?
 }
 
 model ChatMessage {
@@ -201,6 +204,22 @@ model DailyEntry {
 
   @@unique([userId, date])
   @@index([userId])
+}
+
+model MealLog {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  calories  Int
+  protein   Int
+  carbs     Int
+  fat       Int
+  imageUrl  String?
+  date      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
 }
 
 model CommunityPost {
@@ -512,6 +531,43 @@ model UserBadge {
 
   @@unique([userId, badgeId])
   @@index([userId])
+}
+
+model MealProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  foodPreference      String
+  favoriteCuisines    String[]
+  likedFoods          String[]
+  dislikedFoods       String[]
+  allergies           String[]
+  dietaryRestrictions String[]
+  healthGoal          String
+  dailyMeals          Int
+  cookingTime         String
+  mealPreferences     String[]
+  dailyCalorieTarget  Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PantryItem {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  quantity     Float
+  unit         String
+  category     String?
+  purchaseDate DateTime @default(now())
+  expiryDate   DateTime
+  status       String   @default("ACTIVE") // ACTIVE, USED, WASTED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiryDate])
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.

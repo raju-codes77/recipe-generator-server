@@ -4,7 +4,10 @@ import cors from "cors";
 import multer from "multer";
 import { toNodeHandler } from "better-auth/node";
 
-import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
+import ingredientSubstitutionRoutes from "./routes/ingredientSubstitution.route.js";
+import mealPlannerRoutes from "./routes/mealPlanner.route.js";
+import mealProfileRoutes from "./src/routes/mealProfile.routes.js";
+import foodWasteManagerRoutes from "./src/routes/pantry.routes.js";
 
 // ============================================
 // AUTH & DATABASE
@@ -103,11 +106,72 @@ app.post(
         });
       }
 
+      // 1. Authenticate user
+      const session = await auth.api.getSession({ headers: req.headers as any });
+      const userId = session?.user?.id;
+
+      // [MEAL POST] Diagnostic log
+      console.log("[MEAL POST] session.user.id:", userId ?? "UNDEFINED - session cookie may be missing!");
+
+      // 2. Get localDate from body
+      const localDate = req.body.localDate || new Date().toISOString().split("T")[0];
+
+      // 3. Analyze Meal
       const result = await analyzeMeal({
         buffer: req.file.buffer,
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
       });
+
+      if (!result.success || !result.isFood) {
+        return res.status(200).json(result);
+      }
+
+      // 4. Save to DB if authenticated
+      if (userId && result.calories !== undefined) {
+        // Calculate macros
+        const protein = result.macros?.find((m: any) => m.label.toLowerCase() === "protein")?.grams || 0;
+        const carbs = result.macros?.find((m: any) => m.label.toLowerCase() === "carbs")?.grams || 0;
+        const fat = result.macros?.find((m: any) => m.label.toLowerCase() === "fat")?.grams || 0;
+
+        console.log("[MEAL POST] Saving MealLog:", { userId, name: result.foodName, calories: result.calories, date: localDate });
+
+        // Save MealLog
+        const savedMeal = await prisma.mealLog.create({
+          data: {
+            userId,
+            name: result.foodName || "Analyzed Meal",
+            calories: result.calories,
+            protein,
+            carbs,
+            fat,
+            imageUrl: result.imageUrl,
+            date: localDate,
+          },
+        });
+
+        console.log("[MEAL POST] Saved MealLog id:", savedMeal.id);
+
+        // Update DailyEntry
+        await prisma.dailyEntry.upsert({
+          where: { userId_date: { userId, date: localDate } },
+          update: {
+            kcal: { increment: result.calories },
+            protein: { increment: protein },
+          },
+          create: {
+            userId,
+            date: localDate,
+            kcal: result.calories,
+            protein,
+          },
+        });
+
+        // Attach persisted ID
+        result.mealId = savedMeal.id;
+      } else {
+        console.log("[MEAL POST] SKIPPED DB insert - userId undefined or calories missing. userId:", userId, "calories:", result.calories);
+      }
 
       return res.status(200).json(result);
 
@@ -150,10 +214,34 @@ app.use("/api/users", userRoutes);
 app.use("/api/pantry-to-plate", pantryRoutes);
 
 // ============================================
+// INGREDIENT SUBSTITUTION ROUTES
+// ============================================
+
+app.use("/api/ingredient-substitution", ingredientSubstitutionRoutes);
+
+// ============================================
+// MEAL PLANNER ROUTES
+// ============================================
+
+app.use("/api/meal-planner", mealPlannerRoutes);
+
+// ============================================
 // CHALLENGE ROUTES
 // ============================================
 
 app.use("/api/challenges", challengeRoutes);
+
+// ============================================
+// MEAL PROFILE ROUTES
+// ============================================
+
+app.use("/api/meal-profile", mealProfileRoutes);
+
+// ============================================
+// FOOD WASTE MANAGER ROUTES
+// ============================================
+
+app.use("/api/pantry", foodWasteManagerRoutes);
 
 // ============================================
 // RECIPE MATCHER AI
