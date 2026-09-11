@@ -9,37 +9,40 @@ datasource db {
 }
 
 model User {
-  id            String       @id @default(cuid())
-  name          String
-  email         String       @unique
-  emailVerified Boolean      @default(false)
-  image         String?
-  role          String?   @default("user")
-  status        String    @default("ACTIVE")
-  bio           String?
-  location      String?
-  interests     String[]  @default([])
-  coverImage    String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  sessions     Session[]
+  id                    String                 @id @default(cuid())
+  name                  String
+  email                 String                 @unique
+  emailVerified         Boolean                @default(false)
+  image                 String?
+  role                  String?                @default("user")
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  status                String                 @default("ACTIVE")
+  bio                   String?
+  location              String?
+  interests             String[]               @default([])
+  coverImage            String?
+  accounts              Account[]
   challengeParticipants ChallengeParticipant[]
   challengeSubmissions  ChallengeSubmission[]
+  collections           Collection[]
+  dailyEntries          DailyEntry[]
+  favorites             Favorite[]
+  recipes               Recipe[]
+  sessions              Session[]
   userBadges            UserBadge[]
-  accounts     Account[]
-  favorites    Favorite[]
-  recipes      Recipe[]
-  collections  Collection[]
-  goal         UserGoal?
-  dailyEntries DailyEntry[]
+  goal                  UserGoal?
+  tasteProfile          TasteProfile?
+  mealLogs              MealLog[]
+  pantryItems           PantryItem[]
+  mealProfile           MealProfile?
 }
 
 model ChatMessage {
   id        String   @id @default(cuid())
-  userId    String?  // if user loged in and show id( it's optional)
-  role      String   // "user" অথবা "assistant"
-  content   String   // chat messege or recipe
+  userId    String?
+  role      String
+  content   String
   createdAt DateTime @default(now())
 }
 
@@ -103,6 +106,11 @@ model Recipe {
   tabType           String             @default("All Recipes")
   createdAt         DateTime           @default(now())
   userId            String?
+  sweetness         Int?
+  sourness          Int?
+  saltiness         Int?
+  umami             Int?
+  spiciness         Int?
   collectionRecipes CollectionRecipe[]
   favorites         Favorite[]
   ingredients       Ingredient[]
@@ -164,6 +172,22 @@ model UserGoal {
   dailyKcal    Int      @default(2000)
   dailyProtein Int      @default(150)
   updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TasteProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  sweetness           Int      @default(5)
+  sourness            Int      @default(5)
+  saltiness           Int      @default(5)
+  umami               Int      @default(5)
+  spiciness           Int      @default(5)
+  likedIngredients    String[] @default([])
+  dislikedIngredients String[] @default([])
+  preferredCuisines   String[] @default([])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -176,40 +200,49 @@ model DailyEntry {
   protein   Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
   @@index([userId])
 }
 
-// ======================================================
-// COMMUNITY MODELS
-// ======================================================
+model MealLog {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  calories  Int
+  protein   Int
+  carbs     Int
+  fat       Int
+  imageUrl  String?
+  date      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
 
 model CommunityPost {
-  id               String   @id @default(cuid())
+  id               String          @id @default(cuid())
   authorId         String
   caption          String
   imageUrl         String
   additionalImages Json?
   recipeId         String?
-  sharedFromId     String?
   tags             String[]
-  isChallengeEntry Boolean  @default(false)
+  isChallengeEntry Boolean         @default(false)
   challengeName    String?
-  isPinned         Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  sharedFrom       CommunityPost?  @relation("CommunityPostShare", fields: [sharedFromId], references: [id], onDelete: SetNull)
+  isPinned         Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  sharedFromId     String?
+  sharedFrom       CommunityPost?  @relation("CommunityPostShare", fields: [sharedFromId], references: [id])
   shares           CommunityPost[] @relation("CommunityPostShare")
 
   @@index([authorId, isPinned, createdAt])
   @@index([recipeId])
   @@index([sharedFromId])
   @@index([createdAt])
-  // Cursor pagination indexes
   @@index([createdAt, id])
   @@index([authorId, createdAt, id])
 }
@@ -386,8 +419,6 @@ model CommunityNotification {
   @@index([userId, read, createdAt])
 }
 
-// =================== PANTRY TO PLATE MODEL ===================
-
 model PantryRecipe {
   id              String   @id @default(uuid())
   title           String
@@ -411,37 +442,31 @@ model PantryRecipe {
   updatedAt       DateTime @updatedAt
 }
 
-// ======================================================
-// CHALLENGE & GAMIFICATION MODELS
-// ======================================================
-
 model Challenge {
-  id            String   @id @default(cuid())
-  title         String
-  description   String
-  durationDays  Int      @default(7)
-  difficulty    String   @default("Beginner")
-  rewardPoints  Int      @default(100)
-  coverImage    String?
-  isFeatured    Boolean  @default(false)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  days          ChallengeDay[]
-  participants  ChallengeParticipant[]
+  id           String                 @id @default(cuid())
+  title        String
+  description  String
+  durationDays Int                    @default(7)
+  difficulty   String                 @default("Beginner")
+  rewardPoints Int                    @default(100)
+  coverImage   String?
+  isFeatured   Boolean                @default(false)
+  isActive     Boolean                @default(true)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  days         ChallengeDay[]
+  participants ChallengeParticipant[]
 }
 
 model ChallengeDay {
-  id          String   @id @default(cuid())
+  id          String                @id @default(cuid())
   challengeId String
   dayNumber   Int
   title       String
   description String
-  mealId      String?  // TheMealDB ID if applicable
+  mealId      String?
   recipeName  String?
-
-  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  challenge   Challenge             @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   submissions ChallengeSubmission[]
 
   @@unique([challengeId, dayNumber])
@@ -449,65 +474,113 @@ model ChallengeDay {
 }
 
 model ChallengeParticipant {
-  id          String   @id @default(cuid())
-  challengeId String
-  userId      String
-  status               String    @default("ACTIVE") // ACTIVE, COMPLETED, DROPPED, EXPIRED
+  id                   String    @id @default(cuid())
+  challengeId          String
+  userId               String
+  status               String    @default("ACTIVE")
   joinedAt             DateTime  @default(now())
   completedAt          DateTime?
-  lastCompletedAt      DateTime?
-  currentDay           Int       @default(1)
+  progress             Int       @default(0)
   completedDays        Int       @default(0)
-  totalDays            Int       @default(0)
   completionPercentage Int       @default(0)
+  currentDay           Int       @default(1)
   currentStreak        Int       @default(0)
+  lastCompletedAt      DateTime?
   longestStreak        Int       @default(0)
-  progress             Int       @default(0) // Legacy / generic metric
-
-  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalDays            Int       @default(0)
+  challenge            Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([challengeId, userId])
   @@index([userId])
 }
 
 model ChallengeSubmission {
-  id             String   @id @default(cuid())
-  challengeDayId String
-  userId         String
-  imageUrl       String
-  notes          String?
-  aiEstimatedKcal Int?
+  id                 String       @id @default(cuid())
+  challengeDayId     String
+  userId             String
+  imageUrl           String
+  notes              String?
+  aiEstimatedKcal    Int?
   aiEstimatedProtein Int?
-  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  submittedAt    DateTime @default(now())
-
-  challengeDay   ChallengeDay @relation(fields: [challengeDayId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status             String       @default("PENDING")
+  submittedAt        DateTime     @default(now())
+  challengeDay       ChallengeDay @relation(fields: [challengeDayId], references: [id], onDelete: Cascade)
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([challengeDayId, userId])
   @@index([userId])
 }
 
 model Badge {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   name        String
   description String
   iconUrl     String
-  createdAt   DateTime @default(now())
-
+  createdAt   DateTime    @default(now())
   userBadges  UserBadge[]
 }
 
 model UserBadge {
-  id        String   @id @default(cuid())
-  userId    String
-  badgeId   String
-  earnedAt  DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  id       String   @id @default(cuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+  badge    Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, badgeId])
   @@index([userId])
+}
+
+model MealProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  foodPreference      String
+  favoriteCuisines    String[]
+  likedFoods          String[]
+  dislikedFoods       String[]
+  allergies           String[]
+  dietaryRestrictions String[]
+  healthGoal          String
+  dailyMeals          Int
+  cookingTime         String
+  mealPreferences     String[]
+  dailyCalorieTarget  Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PantryItem {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  quantity     Float
+  unit         String
+  category     String?
+  purchaseDate DateTime @default(now())
+  expiryDate   DateTime
+  status       String   @default("ACTIVE") // ACTIVE, USED, WASTED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiryDate])
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model nutritionist {
+  id             String?  @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String?
+  education      String?
+  speciality     String?
+  available_time String?
+  fees           Decimal? @db.Decimal
+  image_url      String?
+
+  @@ignore
 }
