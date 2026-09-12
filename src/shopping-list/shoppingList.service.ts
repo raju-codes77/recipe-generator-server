@@ -256,7 +256,13 @@ export const ShoppingListService = {
       }
     });
 
-    return await this.getShoppingList(userId);
+    const shoppingList = await this.getShoppingList(userId);
+    return {
+      message: `${itemsToAdd.length} missing ingredient${itemsToAdd.length === 1 ? "" : "s"} added to your shopping list.`,
+      addedItems: itemsToAdd,
+      shoppingList,
+      ...shoppingList,
+    } as any;
   },
 
   // =========================
