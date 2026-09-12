@@ -3,9 +3,7 @@ import { RecipeService } from "./recipe.service.js";
 import { requireCommunityUser } from "../community/community.auth.js";
 
 export const RecipeController = {
-  // =========================
   // Get Recipes
-  // =========================
   async getRecipes(req: Request, res: Response) {
     try {
       const {
@@ -18,16 +16,11 @@ export const RecipeController = {
         sortBy,
         tab,
         userId,
-        page,
-        limit,
       } = req.query;
 
       const conditions: any[] = [];
 
-      // =========================
       // Tab Filters
-      // =========================
-
       if (tab === "my-recipes") {
         if (!userId) {
           return res.status(400).json({
@@ -86,9 +79,7 @@ export const RecipeController = {
         });
       }
 
-      // =========================
       // Search
-      // =========================
 
       if (search) {
         conditions.push({
@@ -113,9 +104,7 @@ export const RecipeController = {
         });
       }
 
-      // =========================
       // Category Filter
-      // =========================
 
       if (category && category !== "All") {
         conditions.push({
@@ -126,9 +115,7 @@ export const RecipeController = {
         });
       }
 
-      // =========================
       // Cuisine Filter
-      // =========================
 
       if (cuisine && cuisine !== "All") {
         conditions.push({
@@ -139,10 +126,7 @@ export const RecipeController = {
         });
       }
 
-      // =========================
       // Time Filter
-      // =========================
-
       if (maxTime) {
         conditions.push({
           time: {
@@ -151,10 +135,7 @@ export const RecipeController = {
         });
       }
 
-      // =========================
       // Calories Filter
-      // =========================
-
       if (maxCalories) {
         conditions.push({
           calories: {
@@ -163,10 +144,7 @@ export const RecipeController = {
         });
       }
 
-      // =========================
       // Rating Filter
-      // =========================
-
       if (minRating) {
         conditions.push({
           rating: {
@@ -175,10 +153,7 @@ export const RecipeController = {
         });
       }
 
-      // =========================
       // Where Clause
-      // =========================
-
       const whereClause =
         conditions.length > 0
           ? {
@@ -186,10 +161,7 @@ export const RecipeController = {
             }
           : {};
 
-      // =========================
       // Sorting
-      // =========================
-
       let sortOrder: "asc" | "desc" = "desc";
       let sortByField = "createdAt";
 
@@ -207,29 +179,18 @@ export const RecipeController = {
         [sortByField]: sortOrder,
       };
 
-      // =========================
-      // Pagination
-      // =========================
-      const pageNumber = Math.max(1, parseInt(String(page)) || 1);
-      const pageSize = Math.min(Math.max(1, parseInt(String(limit)) || 12), 50);
-      const skip = (pageNumber - 1) * pageSize;
-
-      // =========================
-      // Fetch Recipes
-      // =========================
+      // Fetch Recipes (Without Pagination - Using existing findRecipes method by passing undefined/0 or updating service call)
 
       const recipes = await RecipeService.findRecipes(
         whereClause,
         orderByObj,
-        pageSize,
-        skip
+        undefined,
+        undefined
       );
 
       return res.status(200).json({
         success: true,
         count: recipes.length,
-        page: pageNumber,
-        limit: pageSize,
         recipes,
       });
 
@@ -244,9 +205,7 @@ export const RecipeController = {
     }
   },
 
-  // =========================
   // Get Single Recipe
-  // =========================
 
   async getRecipeById(req: Request, res: Response) {
     try {
@@ -277,10 +236,7 @@ export const RecipeController = {
     }
   },
 
-  // =========================
   // Check Favorite
-  // =========================
-
   async checkFavorite(req: Request, res: Response) {
     try {
       const { userId, recipeId } = req.query;
@@ -312,10 +268,7 @@ export const RecipeController = {
     }
   },
 
-  // =========================
   // Add Favorite
-  // =========================
-
   async addFavorite(req: Request, res: Response) {
     try {
       const user = await requireCommunityUser(req);
@@ -358,10 +311,7 @@ export const RecipeController = {
     }
   },
 
-  // =========================
   // Remove Favorite
-  // =========================
-
   async removeFavorite(req: Request, res: Response) {
     try {
       const user = await requireCommunityUser(req);
@@ -395,10 +345,7 @@ export const RecipeController = {
     }
   },
 
-  // =========================
   // Get Collections
-  // =========================
-
   async getCollections(req: Request, res: Response) {
     try {
       const { userId } = req.query;
@@ -430,10 +377,7 @@ export const RecipeController = {
     }
   },
 
-  // =========================
   // Create Collection
-  // =========================
-
   async createCollection(req: Request, res: Response) {
     try {
       const user = await requireCommunityUser(req);
@@ -469,11 +413,7 @@ export const RecipeController = {
       });
     }
   },
-
-  // =========================
   // Add Recipe To Collection
-  // =========================
-
   async addRecipeToCollection(req: Request, res: Response) {
     try {
       const user = await requireCommunityUser(req);
@@ -517,9 +457,7 @@ export const RecipeController = {
     }
   },
 
-  // =========================
   // Delete Collection
-  // =========================
 
   async deleteCollection(req: Request, res: Response) {
     try {

@@ -2,10 +2,7 @@
 import { prisma } from "../lib/prisma.js";
 
 export const RecipeService = {
-  // =========================
   // Find Recipes
-  // =========================
-
   async findRecipes(whereClause: any, orderByObj: any, take: number, skip: number) {
     return await prisma.recipe.findMany({
       where: whereClause,
@@ -25,10 +22,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // Find Single Recipe
-  // =========================
-
   async findRecipeById(id: string) {
     return await prisma.recipe.findUnique({
       where: { id },
@@ -40,10 +34,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // User Favorites
-  // =========================
-
   async getUserFavorites(userId: string) {
     return await prisma.favorite.findMany({
       where: { userId },
@@ -53,10 +44,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // User Collections
-  // =========================
-
   async getUserCollections(userId: string) {
     return await prisma.collection.findMany({
       where: { userId },
@@ -70,10 +58,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // Check Favorite
-  // =========================
-
   async checkFavorite(userId: string, recipeId: string) {
     return await prisma.favorite.findUnique({
       where: {
@@ -85,10 +70,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // Add Favorite
-  // =========================
-
   async addFavorite(userId: string, recipeId: string) {
     return await prisma.favorite.create({
       data: {
@@ -98,10 +80,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // Remove Favorite
-  // =========================
-
   async removeFavorite(userId: string, recipeId: string) {
     return await prisma.favorite.delete({
       where: {
@@ -113,10 +92,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // Get Collections
-  // =========================
-
   async getCollections(userId: string) {
     return await prisma.collection.findMany({
       where: { userId },
@@ -142,10 +118,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // Create Collection
-  // =========================
-
   async createCollection(userId: string, name: string) {
     return await prisma.collection.create({
       data: {
@@ -155,10 +128,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // Add Recipe To Collection
-  // =========================
-
   async addRecipeToCollection(
     collectionId: string,
     recipeId: string,
@@ -180,10 +150,7 @@ export const RecipeService = {
     });
   },
 
-  // =========================
   // Delete Collection
-  // =========================
-
   async deleteCollection(
     collectionId: string,
     userId: string
