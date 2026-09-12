@@ -6,6 +6,7 @@ router.use(json({ limit: "9mb" }));
 
 router.get("/posts", communityController.listPosts);
 router.get("/suggested-chefs", communityController.listSuggestedChefs);
+router.get("/suggested-tags", communityController.listSuggestedTags);
 router.get("/feed-counts", communityController.getFeedCounts);
 router.get("/posts/:postId/interactions", communityController.getPostInteractions);
 router.post("/posts", communityController.createPost);

@@ -25,6 +25,4 @@ export interface CreateCommunityPostInput {
   additionalImages?: string[];
   tags?: string[];
   recipe?: CommunityRecipeInput;
-  isChallengeEntry?: boolean;
-  challengeName?: string;
 }

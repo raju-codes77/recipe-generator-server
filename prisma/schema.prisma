@@ -230,8 +230,6 @@ model CommunityPost {
   additionalImages Json?
   recipeId         String?
   tags             String[]
-  isChallengeEntry Boolean         @default(false)
-  challengeName    String?
   isPinned         Boolean         @default(false)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt

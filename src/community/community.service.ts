@@ -59,7 +59,7 @@ export class CommunityService {
       excludePinned?: boolean;
       take?: number;
       skip?: number;
-      filter?: "all" | "trending" | "following" | "quick" | "wellness" | "challenge" | "ai_sparks" | "saved" | "liked";
+      filter?: "all" | "trending" | "following" | "quick" | "wellness" | "ai_sparks" | "saved" | "liked";
     } = {},
   ) {
     const take = Math.min(Math.max(options.take ?? 20, 1), 50);
@@ -92,11 +92,6 @@ export class CommunityService {
           where: { userId: viewerId as string, type: "LIKE" },
           select: { postId: true },
         })).map((row) => row.postId);
-      } else if (options.filter === "challenge") {
-        filteredPostIds = (await prisma.communityPost.findMany({
-          where: { isChallengeEntry: true },
-          select: { id: true },
-        })).map((post) => post.id);
       } else if (options.filter === "quick" || options.filter === "wellness" || options.filter === "ai_sparks") {
         const recipeWhere = options.filter === "quick"
           ? { time: { lte: 25 } }
@@ -303,8 +298,6 @@ export class CommunityService {
         hasMadeIt: viewerMadeItPostIds.has(post.id),
         tags: post.tags,
         createdAt: timeAgo(post.createdAt),
-        isChallengeEntry: post.isChallengeEntry,
-        challengeName: post.challengeName || undefined,
         isPinned: post.isPinned,
         sharedFrom: sharedAuthor ? {
           id: sharedAuthor.id,
@@ -578,8 +571,6 @@ export class CommunityService {
           additionalImages: input.additionalImages || [],
           recipeId,
           tags: input.tags || [],
-          isChallengeEntry: Boolean(input.isChallengeEntry),
-          challengeName: input.challengeName,
         },
       });
     });
@@ -634,8 +625,6 @@ export class CommunityService {
       hasMadeIt: false,
       tags: createdPost.tags,
       createdAt: timeAgo(createdPost.createdAt),
-      isChallengeEntry: createdPost.isChallengeEntry,
-      challengeName: createdPost.challengeName || undefined,
       isPinned: createdPost.isPinned,
     };
   }
@@ -651,7 +640,7 @@ export class CommunityService {
     });
   }
 
-  async sharePost(userId: string, postId: string, caption?: string) {
+  async sharePost(userId: string, postId: string, caption?: string, tags?: string[]) {
     const original = await prisma.communityPost.findUnique({ where: { id: postId } });
     if (!original) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
     if (original.authorId === userId) throw Object.assign(new Error("You cannot share your own post"), { statusCode: 400 });
@@ -659,13 +648,12 @@ export class CommunityService {
     const shared = await prisma.communityPost.create({
       data: {
         authorId: userId,
-        caption: caption?.trim().slice(0, 3000) || original.caption,
+        caption: caption?.trim().slice(0, 3000) ?? "",
         imageUrl: original.imageUrl,
         additionalImages: original.additionalImages ?? undefined,
         recipeId: original.recipeId,
         sharedFromId: original.id,
-        tags: original.tags,
-        isChallengeEntry: false,
+        tags: tags ?? [],
       },
     });
     return (await this.listPosts(userId, { postIds: [shared.id], take: 1 }))[0];
@@ -795,44 +783,73 @@ export class CommunityService {
   }
 
   async listCollections(userId: string) {
-    const collections = await prisma.communityCollection.findMany({
+    const collections = await prisma.collection.findMany({
       where: { userId },
+      include: {
+        recipes: {
+          orderBy: { createdAt: "asc" },
+          take: 1,
+          include: { recipe: { select: { image: true } } },
+        },
+        _count: { select: { recipes: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
-    const collectionIds = collections.map((collection) => collection.id);
-    const savedCounts = collectionIds.length
-      ? await prisma.communitySavedPost.groupBy({
-          by: ["collectionId"],
-          where: { collectionId: { in: collectionIds } },
-          _count: { _all: true },
-        })
-      : [];
-    const savedCountByCollection = new Map(savedCounts.map((item) => [item.collectionId, item._count._all]));
 
     return collections.map((collection) => ({
-        id: collection.id,
-        name: collection.name,
-        description: collection.description || "",
-        coverImage: collection.coverImage || "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=600",
-        recipeCount: savedCountByCollection.get(collection.id) || 0,
-        isPrivate: collection.isPrivate,
-      }));
+      id: collection.id,
+      name: collection.name,
+      description: "",
+      coverImage: collection.recipes[0]?.recipe.image || "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=600",
+      recipeCount: collection._count.recipes,
+      isPrivate: false,
+    }));
   }
 
   createCollection(userId: string, name: string, description?: string) {
-    return prisma.communityCollection.create({ data: { userId, name, description } });
+    void description;
+    return prisma.collection.create({ data: { userId, name } });
   }
 
   async savePost(userId: string, postId: string, collectionId?: string) {
+    const post = await prisma.communityPost.findUnique({
+      where: { id: postId },
+      select: { id: true, recipeId: true },
+    });
+    if (!post) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
+
     const existing = await prisma.communitySavedPost.findUnique({ where: { postId_userId: { postId, userId } } });
     if (existing && !collectionId) {
-      await prisma.communitySavedPost.delete({ where: { postId_userId: { postId, userId } } });
+      await prisma.$transaction(async (tx) => {
+        await tx.communitySavedPost.delete({ where: { postId_userId: { postId, userId } } });
+        if (post.recipeId && existing.collectionId) {
+          await tx.collectionRecipe.deleteMany({
+            where: { collectionId: existing.collectionId, recipeId: post.recipeId },
+          });
+        }
+      });
       return { active: false };
     }
-    await prisma.communitySavedPost.upsert({
-      where: { postId_userId: { postId, userId } },
-      update: { collectionId },
-      create: { postId, userId, collectionId },
+
+    if (collectionId) {
+      const collection = await prisma.collection.findFirst({ where: { id: collectionId, userId } });
+      if (!collection) throw Object.assign(new Error("Collection not found"), { statusCode: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.communitySavedPost.upsert({
+        where: { postId_userId: { postId, userId } },
+        update: { collectionId },
+        create: { postId, userId, collectionId },
+      });
+
+      if (post.recipeId && collectionId) {
+        await tx.collectionRecipe.upsert({
+          where: { collectionId_recipeId: { collectionId, recipeId: post.recipeId } },
+          update: {},
+          create: { collectionId, recipeId: post.recipeId },
+        });
+      }
     });
     return { active: true };
   }
@@ -899,6 +916,31 @@ export class CommunityService {
       }),
       hasMore,
     };
+  }
+
+  async listSuggestedTags(search: string, limit = 8) {
+    const normalizedSearch = search.trim().replace(/^#+/, "").slice(0, 50);
+    if (!normalizedSearch) return [];
+
+    const safeLimit = Math.min(Math.max(limit, 1), 12);
+    const rows = await prisma.$queryRaw<Array<{ tag: string }>>`
+      SELECT display_tag AS tag
+      FROM (
+        SELECT
+          LOWER(BTRIM(tag_value, '#')) AS normalized_tag,
+          MIN(BTRIM(tag_value, '#')) AS display_tag,
+          COUNT(*)::int AS usage_count
+        FROM "CommunityPost" post
+        CROSS JOIN LATERAL unnest(post."tags") AS tag_value
+        WHERE BTRIM(tag_value, '#') <> ''
+          AND LOWER(BTRIM(tag_value, '#')) LIKE ${`%${normalizedSearch.toLowerCase()}%`}
+        GROUP BY LOWER(BTRIM(tag_value, '#'))
+      ) popular_tags
+      ORDER BY usage_count DESC, normalized_tag ASC
+      LIMIT ${safeLimit}
+    `;
+
+    return rows.map(({ tag }) => `#${tag}`);
   }
 
   async getFeedCounts(userId: string) {
