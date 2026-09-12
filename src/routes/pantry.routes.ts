@@ -62,7 +62,7 @@ router.put("/:id", async (req: Request, res: Response) => {
   const userId = await getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-  const { id } = req.params;
+  const id = String(req.params.id);
   const { name, quantity, unit, category, expiryDate, status } = req.body;
 
   try {
@@ -94,7 +94,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
   const userId = await getUserId(req);
   if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-  const { id } = req.params;
+  const id = String(req.params.id);
 
   try {
     const existing = await prisma.pantryItem.findUnique({ where: { id } });

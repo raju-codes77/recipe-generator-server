@@ -32,6 +32,7 @@ import communityRoutes from "./src/community/community.routes.js";
 import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
 import pantryRoutes from "./routes/pantryRoutes.js";
 import challengeRoutes from "./src/routes/challenge.routes.js";
+import shoppingListRoutes from "./src/shopping-list/shoppingList.routes.js";
 
 // ============================================
 // ADMIN & AI ROUTES
@@ -242,6 +243,12 @@ app.use("/api/meal-profile", mealProfileRoutes);
 // ============================================
 
 app.use("/api/pantry", foodWasteManagerRoutes);
+
+// ============================================
+// SMART SHOPPING LIST ROUTES
+// ============================================
+
+app.use("/api/shopping-list", shoppingListRoutes);
 
 // ============================================
 // RECIPE MATCHER AI
