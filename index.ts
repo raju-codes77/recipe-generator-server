@@ -32,16 +32,14 @@ import communityRoutes from "./src/community/community.routes.js";
 import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
 import pantryRoutes from "./routes/pantryRoutes.js";
 import challengeRoutes from "./src/routes/challenge.routes.js";
+import adminUserRoutes from "./routes/admin-user.route.js";
+import aiChatRoutes from "./routes/ai-chat.routes.js";
+import dashboardRoutes from "./routes/dashboard.route.js";
+import adminRoutes from "./routes/admin.route.js";
 
 // ============================================
 // ADMIN & AI ROUTES
 // ============================================
-
-// User CRUD operations
-import adminUserRoutes from "./routes/admin-user.route.js";
-
-// Gemini AI Chatbot route
-import aiChatRoutes from "./routes/ai-chat.routes.js";
 
 
 const app = express();
@@ -258,16 +256,20 @@ app.use("/api", recipeMatcherRoute);
 // PATCH  /api/admin/users/:id/status
 // DELETE /api/admin/users/:id
 
-app.use("/api/admin", adminUserRoutes);
+app.use("/api/admin-user", adminUserRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ============================================
 // GEMINI AI CHATBOT ROUTES
-// ============================================
-
-// Handles:
-// POST /api/chat
-
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. AI Chat / Consultant Route
+// ─────────────────────────────────────────────────────────────────────────────
 app.use("/api", aiChatRoutes);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 16. Dashboard Analytics Routes
+// ─────────────────────────────────────────────────────────────────────────────
+app.use("/api/dashboard", dashboardRoutes);
 
 // ============================================
 // DATABASE TEST

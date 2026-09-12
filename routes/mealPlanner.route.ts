@@ -65,7 +65,8 @@ const dayPlanSchema: Schema = {
         lunch: mealSchema,
         eveningSnack: mealSchema,
         dinner: mealSchema
-      }
+      },
+      required: ["breakfast", "lunch", "dinner"]
     },
     dailyTotals: {
       type: Type.OBJECT,
@@ -163,7 +164,9 @@ router.post("/generate", async (req: Request, res: Response) => {
   const profile = await prisma.mealProfile.findUnique({ where: { userId } });
   const profileContext = buildProfileContext(profile);
 
-  const { days = 7 } = req.body;
+  const { days = 7, peopleCount = 2 } = req.body;
+  const numPeople = Math.min(Math.max(Number(peopleCount) || 2, 1), 20);
+
   if (![3, 7, 14].includes(days)) {
     return res.status(400).json({ message: "Days must be 3, 7, or 14" });
   }
@@ -178,8 +181,9 @@ CRITICAL RULES:
 1. NEVER include any ingredient that appears in the user's allergy list. This is a hard restriction.
 2. Adhere to dietary restrictions and food preferences.
 3. If specific meals (e.g. Snacks) are NOT requested in Meal Preferences, omit them from the meals object. Include only requested meal types.
-4. Provide realistic, appetizing meals with prep times and macros.
-5. EXACTLY return an array of ${days} days in the "days" field. Do not return more or fewer days. This is a strict requirement.
+4. Scale all ingredient quantities and macro-nutrient estimates (calories, protein) accurately for exactly ${numPeople} people per meal.
+5. Provide realistic, appetizing meals with prep times and macros.
+6. EXACTLY return an array of ${days} days in the "days" field. Do not return more or fewer days. This is a strict requirement.
 
 Respond strictly according to the required JSON schema.`;
 
@@ -247,8 +251,11 @@ router.post("/generate-budget", async (req: Request, res: Response) => {
     city,
     currency,
     budget,
-    days = 7
+    days = 7,
+    peopleCount = 2
   } = req.body;
+
+  const numPeople = Math.min(Math.max(Number(peopleCount) || 2, 1), 20);
 
   if (![3, 7, 14].includes(days)) {
     return res.status(400).json({ message: "Days must be 3, 7, or 14" });
@@ -259,14 +266,14 @@ router.post("/generate-budget", async (req: Request, res: Response) => {
 
   try {
     const prompt = `You are a highly capable AI Chef and Local Shopping Expert for ${city}, ${country}.
-Generate a ${days}-day budget meal plan that fits within a budget of ${currency}${budget}.
+Generate a ${days}-day budget meal plan scaled precisely for ${numPeople} people that fits within a budget of ${currency}${budget}.
 
 ${profileContext ? profileContext : "No specific user profile provided."}
 
 CRITICAL RULES:
 1. NEVER include any ingredient that appears in the user's allergy list. This is a hard restriction.
 2. RECOMMEND AUTHENTIC LOCAL FOODS based on the country (${country}). Do not generate a generic Western diet if the country is not Western (e.g., for Bangladesh, recommend rice, dal, bhorta).
-3. ESTIMATE PRICES ACCURATELY in ${currency}. Ensure the total estimated cost of all meals + ingredients stays close to but under the ${currency}${budget} budget. Include 'estimatedCost' for each meal and daily total.
+3. ESTIMATE PRICES AND QUANTITIES ACCURATELY in ${currency} for ${numPeople} people. The ingredient amounts in the shopping list and macros must serve ${numPeople} people. Ensure the total estimated cost of all meals + ingredients stays close to but under the ${currency}${budget} budget. Include 'estimatedCost' for each meal and daily total.
 4. RECOMMEND 3 NEARBY GROCERY STORES/MARKETS in or near ${city}, ${country}. Provide estimated distances and price context.
 5. If Snacks are NOT in the Meal Preferences, do not include them.
 6. EXACTLY return an array of ${days} days in the "days" field. Do not return more or fewer days. This is a strict requirement.
