@@ -105,11 +105,18 @@ app.post(
       }
 
       // 1. Authenticate user
-      const session = await auth.api.getSession({ headers: req.headers as any });
-      const userId = session?.user?.id;
+      let userId: string | undefined;
+      try {
+        const session = await auth.api.getSession({ headers: req.headers as any });
+        if (session?.user?.id) userId = session.user.id;
+      } catch (error) {}
+
+      if (!userId && req.body.userId) {
+        userId = req.body.userId;
+      }
 
       // [MEAL POST] Diagnostic log
-      console.log("[MEAL POST] session.user.id:", userId ?? "UNDEFINED - session cookie may be missing!");
+      console.log("[MEAL POST] userId:", userId ?? "UNDEFINED - session cookie may be missing!");
 
       // 2. Get localDate from body
       const localDate = req.body.localDate || new Date().toISOString().split("T")[0];

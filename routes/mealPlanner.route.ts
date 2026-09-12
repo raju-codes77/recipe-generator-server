@@ -13,10 +13,17 @@ const ai = new GoogleGenAI({
 async function getUserId(req: Request): Promise<string | null> {
   try {
     const session = await auth.api.getSession({ headers: req.headers as any });
-    return session?.user?.id ?? null;
-  } catch {
-    return null;
+    if (session?.user?.id) return session.user.id;
+  } catch (error) {
+    // Ignore error and fall through to fallback
   }
+
+  const fallbackUserId = req.query?.userId || req.body?.userId;
+  if (fallbackUserId && typeof fallbackUserId === "string" && fallbackUserId !== "undefined") {
+    return fallbackUserId;
+  }
+
+  return null;
 }
 
 function buildProfileContext(profile: any) {
