@@ -19,14 +19,15 @@ export const communityController = {
     const user = await getOptionalCommunityUser(req);
     const rawTake = Number(req.query.take);
     const rawSkip = Number(req.query.skip);
+    const isGuest = !user;
     const requestedFilter = typeof req.query.filter === "string" ? req.query.filter : "all";
     const filter = ["all", "trending", "following", "quick", "wellness", "challenge", "ai_sparks", "saved", "liked"].includes(requestedFilter)
       ? requestedFilter as "all" | "trending" | "following" | "quick" | "wellness" | "challenge" | "ai_sparks" | "saved" | "liked"
       : "all";
     res.json({
       posts: await communityService.listPosts(user?.id, {
-        take: Number.isFinite(rawTake) ? rawTake : undefined,
-        skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+        take: Number.isFinite(rawTake) ? (isGuest ? Math.min(rawTake, 3) : rawTake) : (isGuest ? 3 : undefined),
+        skip: isGuest ? 0 : (Number.isFinite(rawSkip) ? rawSkip : undefined),
         filter,
         excludePinned: true,
       }),
