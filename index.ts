@@ -6,6 +6,7 @@ import { toNodeHandler } from "better-auth/node";
 
 import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
 
+
 // ============================================
 // AUTH & DATABASE
 // ============================================
@@ -37,7 +38,7 @@ import adminUserRoutes from "./routes/admin-user.route.js";
 // Gemini AI Chatbot route
 import aiChatRoutes from "./routes/ai-chat.routes.js";
 
-
+import { getNutritionist, getNutritionistById } from './routes/nutritionist.js'; // ফাইলের বানান যেমন আছে वैसेই দেওয়া হলো
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -87,6 +88,14 @@ app.use("/api/community", communityRoutes);
 // ============================================
 // MEAL ANALYSIS
 // ============================================
+
+
+//================================
+// nutrionist route
+//==================================
+app.get('/api/nutritionist', getNutritionist);
+
+app.get('/api/nutritionist/:id', getNutritionistById);
 
 app.post(
   "/api/meals/analyze",
@@ -193,6 +202,9 @@ app.get("/db-test", async (req, res) => {
 // ============================================
 // LOCAL SERVER
 // ============================================
+
+
+
 
 if (process.env.NODE_ENV !== "production") {
   app.listen(PORT, () => {
