@@ -9,6 +9,14 @@ export interface GenerateInput {
   diet: string;
   servings: string;
   selectedOptions: string[];
+  tasteProfile?: {
+    sweetness?: number;
+    spiciness?: number;
+    sourness?: number;
+    preferredCuisines?: string[];
+    likedIngredients?: string[];
+    dislikedIngredients?: string[];
+  };
 }
 
 export interface FormattedRecipe {
@@ -53,6 +61,16 @@ function formatRecipe(raw: RawAIRecipe): FormattedRecipe {
 }
 
 function generatePrompt(input: GenerateInput) {
+  const tasteClause = input.tasteProfile
+    ? `\nUser taste profile:
+- Spiciness preference (1-10): ${input.tasteProfile.spiciness ?? 5}
+- Sweetness preference (1-10): ${input.tasteProfile.sweetness ?? 5}
+- Preferred cuisines: ${input.tasteProfile.preferredCuisines?.join(", ") || "any"}
+- Liked ingredients: ${input.tasteProfile.likedIngredients?.join(", ") || "none specified"}
+- Disliked ingredients: ${input.tasteProfile.dislikedIngredients?.join(", ") || "none"}
+Adjust the recipe to match these preferences where possible.`
+    : "";
+
   return `You are a professional chef AI. Generate ONE recipe as raw JSON only (no markdown), matching exactly this schema:
 
 {
@@ -74,7 +92,7 @@ Meal type: ${input.mealType}
 Max cooking time: ${input.cookingTime}
 Diet: ${input.diet}
 Servings: ${input.servings}
-Special AI options: ${input.selectedOptions.join(", ") || "none"}
+Special AI options: ${input.selectedOptions.join(", ") || "none"}${tasteClause}
 
 Rules:
 - Use mainly the given pantry ingredients; common staples (salt, oil, spice) allowed.
