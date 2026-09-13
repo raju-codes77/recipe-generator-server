@@ -33,16 +33,14 @@ import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
 import pantryRoutes from "./routes/pantryRoutes.js";
 import challengeRoutes from "./src/routes/challenge.routes.js";
 import shoppingListRoutes from "./src/shopping-list/shoppingList.routes.js";
+import adminUserRoutes from "./routes/admin-user.route.js";
+import aiChatRoutes from "./routes/ai-chat.routes.js";
+import dashboardRoutes from "./routes/dashboard.route.js";
+import adminRoutes from "./routes/admin.route.js";
 
 // ============================================
 // ADMIN & AI ROUTES
 // ============================================
-
-// User CRUD operations
-import adminUserRoutes from "./routes/admin-user.route.js";
-
-// Gemini AI Chatbot route
-import aiChatRoutes from "./routes/ai-chat.routes.js";
 
 
 const app = express();
@@ -108,11 +106,18 @@ app.post(
       }
 
       // 1. Authenticate user
-      const session = await auth.api.getSession({ headers: req.headers as any });
-      const userId = session?.user?.id;
+      let userId: string | undefined;
+      try {
+        const session = await auth.api.getSession({ headers: req.headers as any });
+        if (session?.user?.id) userId = session.user.id;
+      } catch (error) {}
+
+      if (!userId && req.body.userId) {
+        userId = req.body.userId;
+      }
 
       // [MEAL POST] Diagnostic log
-      console.log("[MEAL POST] session.user.id:", userId ?? "UNDEFINED - session cookie may be missing!");
+      console.log("[MEAL POST] userId:", userId ?? "UNDEFINED - session cookie may be missing!");
 
       // 2. Get localDate from body
       const localDate = req.body.localDate || new Date().toISOString().split("T")[0];
@@ -265,16 +270,20 @@ app.use("/api", recipeMatcherRoute);
 // PATCH  /api/admin/users/:id/status
 // DELETE /api/admin/users/:id
 
-app.use("/api/admin", adminUserRoutes);
+app.use("/api/admin-user", adminUserRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ============================================
 // GEMINI AI CHATBOT ROUTES
-// ============================================
-
-// Handles:
-// POST /api/chat
-
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. AI Chat / Consultant Route
+// ─────────────────────────────────────────────────────────────────────────────
 app.use("/api", aiChatRoutes);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 16. Dashboard Analytics Routes
+// ─────────────────────────────────────────────────────────────────────────────
+app.use("/api/dashboard", dashboardRoutes);
 
 // ============================================
 // DATABASE TEST
