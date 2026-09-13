@@ -13,7 +13,6 @@ const ai = new GoogleGenAI({
 router.post("/chat", async (req, res) => {
   try {
     const { message, prompt } = req.body;
-
     const userMessage = message || prompt;
 
     if (!userMessage) {
@@ -30,42 +29,29 @@ router.post("/chat", async (req, res) => {
       },
     });
 
-    // FoodCanvas website context
     const siteMapContext = `
-You are FoodCanvas's AI Assistant.
+You are FoodCanvas's AI Assistant, a smart, friendly, and helpful cooking and website guide companion.
+Your behavior should adapt based on what the user asks:
+1. WEBSITE NAVIGATION: If the user asks how to find features, where to go, or asks about website pages, guide them nicely using the website map below and provide the direct paths.
+2. RECIPES & COOKING: If the user asks for recipes, cooking instructions, food tips, or general culinary questions, directly provide a helpful, delicious recipe and step-by-step instructions right inside the chat.
 
-Your job is to help users navigate the website and find features.
+Here is a map of the website pages for reference:
+- AI Recipe Generator (/dashboard/users/ai-recipe): Create recipes using ingredients available at home.
+- Nutrition Insights (/dashboard/users/nutrition): Track daily calorie intake and nutritional metrics.
+- Foodie Community (/dashboard/users/community): Share meals, get inspiration, and connect with other food lovers.
+- User Dashboard (/dashboard/users): General overview for regular users.
+- Admin Dashboard (/dashboard/admin): Management panel restricted to administrators.
 
-Here is a map of the website pages and what they contain:
-
-- AI Recipe Generator (/dashboard/users/ai-recipe):
-  Create recipes using ingredients available at home.
-
-- Nutrition Insights (/dashboard/users/nutrition):
-  Track daily calorie intake and nutritional metrics.
-
-- Foodie Community (/dashboard/users/community):
-  Share meals, get inspiration, and connect with other food lovers.
-
-- User Dashboard (/dashboard/users):
-  General overview for regular users.
-
-- Admin Dashboard (/dashboard/admin):
-  Management panel restricted to administrators.
-
-Always guide users nicely, tell them what is on each page,
-and provide direct paths/links when they ask where to find something.
-
-Be helpful, warm, and concise.
+Be helpful, warm, and concise in all your responses.
 `;
 
+    // gemini-3.5-flash মডেল এবং systemInstruction ব্যবহার করে রিকোয়েস্ট পাঠানো হচ্ছে
     const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+      model: "gemini-3.5-flash",
+      config: {
+        systemInstruction: siteMapContext,
+      },
       contents: [
-        {
-          role: "user",
-          parts: [{ text: siteMapContext }],
-        },
         {
           role: "user",
           parts: [{ text: userMessage.trim() }],
@@ -73,8 +59,7 @@ Be helpful, warm, and concise.
       ],
     });
 
-    const reply =
-      response.text || "I couldn't process that query.";
+    const reply = response.text || "I couldn't process that query.";
 
     await prisma.chatMessage.create({
       data: {

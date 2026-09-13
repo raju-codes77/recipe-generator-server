@@ -1,70 +1,71 @@
 import { Request, Response } from "express";
-import { supabase } from "../src/lib/supabase";
+import { supabase } from "../src/lib/supabase.js";
 
-// আগের সব নিউট্রিশনিস্ট পাওয়ার ফাংশন
-export const getNutritionist = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+// সব নিউট্রিশনিস্ট পাওয়ার ফাংশন
+export const getNutritionist = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { data, error } = await supabase
-      .from("nutritionist")
-      .select("*");
-
-    if (error) {
-      console.error("SUPABASE ERROR:", error);
-      throw error;
-    }
-
-    res.status(200).json({
-      success: true,
-      data,
-    });
+    const { data, error } = await supabase.from("nutritionist").select("*");
+    if (error) throw error;
+    res.status(200).json({ success: true, data });
   } catch (error: any) {
     console.error("NUTRITIONIST API ERROR:", error);
-
-    res.status(500).json({
-      success: false,
-      message: error?.message || "Internal Server Error",
-    });
+    res.status(500).json({ success: false, message: error?.message || "Internal Server Error" });
   }
 };
 
-// নতুন যোগ করা হলো: আইডি দিয়ে একটি নির্দিষ্ট ডক্টরের ডাটা পাওয়ার জন্য
-export const getNutritionistById = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+// আইডি দিয়ে নির্দিষ্ট ডক্টরের ডাটা পাওয়ার ফাংশন
+export const getNutritionistById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    
-    // এই কনসোল লগটা দিয়ে দেখ টার্মিনালে আসল কি আইডি আসছে
-    console.log("Backend received ID from frontend:", JSON.stringify(id));
-
     const { data, error } = await supabase
       .from("nutritionist")
       .select("*")
-      .eq("id", id.trim()) // .trim() দিয়ে অতিরিক্ত স্পেস কেটে দেওয়া ভালো
-      .single(); 
+      .eq("id", id.trim())
+      .single();
 
     if (error) {
-      console.error("SUPABASE ERROR:", error);
-      res.status(404).json({
-        success: false,
-        message: "Nutritionist not found",
-      });
+      res.status(404).json({ success: false, message: "Nutritionist not found" });
+      return;
+    }
+    res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    console.error("NUTRITIONIST BY ID API ERROR:", error);
+    res.status(500).json({ success: false, message: error?.message || "Internal Server Error" });
+  }
+};
+
+// অ্যাপয়েন্টমেন্ট বুকিং করার ফাংশন (সঠিক 'NutritionistApplication' টেবিল সহ)
+export const createAppointment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { nutritionistId, patientName, email, phone, appointmentDate, slotTime } = req.body;
+
+    if (!nutritionistId || !patientName || !email || !phone || !appointmentDate || !slotTime) {
+      res.status(400).json({ success: false, message: "All fields are required." });
       return;
     }
 
-    res.status(200).json({
-      success: true,
-      data,
-    });
+    const { data, error } = await supabase
+      .from("NutritionistApplication")
+      .insert([
+        {
+          userId: nutritionistId,
+          name: patientName,
+          email,
+          phone,
+          appointment_date: appointmentDate,
+          slot_time: slotTime,
+        },
+      ])
+      .select();
+
+    if (error) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+
+    res.status(201).json({ success: true, message: "Appointment booked successfully!", data });
   } catch (error: any) {
-    console.error("NUTRITIONIST BY ID API ERROR:", error);
-    res.status(500).json({
-      success: false,
-      message: error?.message || "Internal Server Error",
-    });
+    console.error("CREATE APPOINTMENT API ERROR:", error);
+    res.status(500).json({ success: false, message: error?.message || "Internal Server Error" });
   }
 };
