@@ -229,8 +229,9 @@ export const communityController = {
     );
   }),
 
-  listStories: handle(async (_req, res) => {
-    res.json({ stories: await communityService.listStories() });
+  listStories: handle(async (req, res) => {
+    const user = await getOptionalCommunityUser(req);
+    res.json({ stories: await communityService.listStories(undefined, user?.id) });
   }),
 
   createStory: handle(async (req, res) => {
@@ -261,6 +262,11 @@ export const communityController = {
   listStoryViewers: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
     res.json({ viewers: await communityService.listStoryViewers(user.id, param(req.params.storyId)) });
+  }),
+
+  reactToStory: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json({ active: await communityService.reactToStory(user.id, param(req.params.storyId)) });
   }),
 
   updateMyProfile: handle(async (req, res) => {

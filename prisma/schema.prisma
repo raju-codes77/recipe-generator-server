@@ -358,6 +358,17 @@ model CommunityStoryView {
   @@index([viewerId])
 }
 
+model CommunityStoryReaction {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([storyId, userId])
+  @@index([storyId])
+  @@index([userId])
+}
+
 model CommunityConversation {
   id        String   @id @default(cuid())
   pairKey   String   @unique

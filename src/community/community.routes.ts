@@ -33,6 +33,7 @@ router.post("/stories", communityController.createStory);
 router.delete("/stories/:storyId", communityController.deleteStory);
 router.post("/stories/:storyId/view", communityController.recordStoryView);
 router.get("/stories/:storyId/viewers", communityController.listStoryViewers);
+router.post("/stories/:storyId/reaction", communityController.reactToStory);
 router.patch("/users/me/profile", communityController.updateMyProfile);
 router.get("/notifications", communityController.listNotifications);
 router.patch("/notifications/:notificationId/read", communityController.markNotificationRead);
