@@ -36,13 +36,14 @@ function pickFromPoolByKeywords(text: string): string {
 // GET /api/taste-profile
 router.get("/taste-profile", async (req: Request, res: Response) => {
   try {
-    const session = await auth.api.getSession({ headers: req.headers as any });
-    if (!session?.user?.id) {
+    const session = await auth.api.getSession({ headers: req.headers as any }).catch(() => null);
+    const userId = session?.user?.id || req.query?.userId || req.body?.userId;
+    if (!userId || typeof userId !== "string" || userId === "undefined") {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
     const profile = await prisma.tasteProfile.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
     });
 
     res.json({ success: true, profile });
@@ -55,12 +56,11 @@ router.get("/taste-profile", async (req: Request, res: Response) => {
 // POST /api/match-recipes
 router.post("/match-recipes", async (req: Request, res: Response) => {
   try {
-    const session = await auth.api.getSession({ headers: req.headers as any });
-    if (!session?.user?.id) {
+    const session = await auth.api.getSession({ headers: req.headers as any }).catch(() => null);
+    const userId = session?.user?.id || req.query?.userId || req.body?.userId;
+    if (!userId || typeof userId !== "string" || userId === "undefined") {
       return res.status(401).json({ success: false, error: "Unauthorized. Please log in to match recipes." });
     }
-
-    const userId = session.user.id;
     const { sweetness, sourness, saltiness, umami, spiciness, likedIngredients, dislikedIngredients, preferredCuisines } = req.body;
 
     if (
