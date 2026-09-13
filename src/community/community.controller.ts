@@ -19,14 +19,15 @@ export const communityController = {
     const user = await getOptionalCommunityUser(req);
     const rawTake = Number(req.query.take);
     const rawSkip = Number(req.query.skip);
+    const isGuest = !user;
     const requestedFilter = typeof req.query.filter === "string" ? req.query.filter : "all";
-    const filter = ["all", "trending", "following", "quick", "wellness", "challenge", "ai_sparks", "saved", "liked"].includes(requestedFilter)
-      ? requestedFilter as "all" | "trending" | "following" | "quick" | "wellness" | "challenge" | "ai_sparks" | "saved" | "liked"
+    const filter = ["all", "trending", "following", "quick", "wellness", "ai_sparks", "saved", "liked"].includes(requestedFilter)
+      ? requestedFilter as "all" | "trending" | "following" | "quick" | "wellness" | "ai_sparks" | "saved" | "liked"
       : "all";
     res.json({
       posts: await communityService.listPosts(user?.id, {
-        take: Number.isFinite(rawTake) ? rawTake : undefined,
-        skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+        take: Number.isFinite(rawTake) ? (isGuest ? Math.min(rawTake, 3) : rawTake) : (isGuest ? 3 : undefined),
+        skip: isGuest ? 0 : (Number.isFinite(rawSkip) ? rawSkip : undefined),
         filter,
         excludePinned: true,
       }),
@@ -36,6 +37,11 @@ export const communityController = {
   listSuggestedChefs: handle(async (req, res) => {
     const user = await getOptionalCommunityUser(req);
     res.json({ chefs: await communityService.listSuggestedChefs(user?.id) });
+  }),
+
+  listSuggestedTags: handle(async (req, res) => {
+    const search = typeof req.query.search === "string" ? req.query.search : "";
+    res.json({ tags: await communityService.listSuggestedTags(search) });
   }),
 
   getFeedCounts: handle(async (req, res) => {
@@ -70,7 +76,7 @@ export const communityController = {
     const user = await requireCommunityUser(req);
 
     await communityService.updatePost(user.id, param(req.params.postId), {
-      caption: req.body.caption ? parseRequiredText(req.body.caption, "Caption", 3000) : undefined,
+      caption: typeof req.body.caption === "string" ? req.body.caption.trim().slice(0, 3000) : undefined,
       tags: Array.isArray(req.body.tags) ? req.body.tags.map(String).slice(0, 12) : undefined,
       isPinned: typeof req.body.isPinned === "boolean" ? req.body.isPinned : undefined,
     });
@@ -164,7 +170,8 @@ export const communityController = {
 
   sharePost: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
-    res.status(201).json({ post: await communityService.sharePost(user.id, param(req.params.postId), typeof req.body?.caption === "string" ? req.body.caption : undefined) });
+    const tags = Array.isArray(req.body?.tags) ? req.body.tags.map(String).slice(0, 12) : undefined;
+    res.status(201).json({ post: await communityService.sharePost(user.id, param(req.params.postId), typeof req.body?.caption === "string" ? req.body.caption : undefined, tags) });
   }),
 
   listConnections: handle(async (req, res) => {

@@ -38,8 +38,6 @@ export function parsePostInput(body: unknown): CreateCommunityPostInput {
       value.recipe && typeof value.recipe === "object"
         ? (value.recipe as CreateCommunityPostInput["recipe"])
         : undefined,
-    isChallengeEntry: value.isChallengeEntry === true,
-    challengeName: text(value.challengeName, 160) || undefined,
   };
 }
 
