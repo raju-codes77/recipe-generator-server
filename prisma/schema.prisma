@@ -36,6 +36,7 @@ model User {
   mealLogs              MealLog[]
   pantryItems           PantryItem[]
   mealProfile           MealProfile?
+  shoppingLists         ShoppingList[]
 }
 
 model ChatMessage {
@@ -568,6 +569,37 @@ model PantryItem {
 
   @@index([userId])
   @@index([expiryDate])
+}
+
+model ShoppingList {
+  id        String             @id @default(cuid())
+  userId    String
+  name      String             @default("My Shopping List")
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     ShoppingListItem[]
+
+  @@index([userId])
+}
+
+model ShoppingListItem {
+  id             String       @id @default(cuid())
+  shoppingListId String
+  name           String
+  quantity       Float        @default(1)
+  unit           String       @default("pcs")
+  category       String       @default("Other")
+  checked        Boolean      @default(false)
+  sourceType     String       @default("manual")
+  sourceRecipeId String?
+  source         String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  shoppingList   ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+
+  @@index([shoppingListId])
+  @@index([sourceRecipeId])
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
