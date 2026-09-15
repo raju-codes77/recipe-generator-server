@@ -117,12 +117,12 @@ export class CommunityService {
           FROM "CommunityPost" p
           LEFT JOIN "CommunityReaction" reaction
             ON reaction."postId" = p."id" AND reaction."type" = 'LIKE'
-          LEFT JOIN "CommunityReview" review
-            ON review."postId" = p."id"
+          LEFT JOIN "CommunityComment" comment
+            ON comment."postId" = p."id"
           GROUP BY p."id", p."isPinned", p."createdAt"
           ORDER BY p."isPinned" DESC,
             COUNT(DISTINCT reaction."id") DESC,
-            COALESCE(AVG(review."rating"), 0) DESC,
+            COUNT(DISTINCT comment."id") DESC,
             p."createdAt" DESC
           LIMIT ${take} OFFSET ${skip}
         `;
