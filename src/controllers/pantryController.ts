@@ -41,6 +41,7 @@ export async function generate(req: Request, res: Response) {
 
     return res.status(200).json({
       id: saved.id,
+      recipeId: saved.id,
       title: saved.title,
       description: saved.description,
       image: saved.image,
@@ -104,6 +105,7 @@ export async function refine(req: Request, res: Response) {
 
     return res.status(200).json({
       id: saved.id,
+      recipeId: saved.id,
       title: saved.title,
       description: saved.description,
       image: saved.image,

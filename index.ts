@@ -9,6 +9,7 @@ import mealPlannerRoutes from "./routes/mealPlanner.route.js";
 import mealProfileRoutes from "./src/routes/mealProfile.routes.js";
 import foodWasteManagerRoutes from "./src/routes/pantry.routes.js";
 
+
 // ============================================
 // AUTH & DATABASE
 // ============================================
@@ -32,6 +33,7 @@ import communityRoutes from "./src/community/community.routes.js";
 import recipeMatcherRoute from "./routes/recipeMatcher.route.js";
 import pantryRoutes from "./routes/pantryRoutes.js";
 import challengeRoutes from "./src/routes/challenge.routes.js";
+import shoppingListRoutes from "./src/shopping-list/shoppingList.routes.js";
 import adminUserRoutes from "./routes/admin-user.route.js";
 import aiChatRoutes from "./routes/ai-chat.routes.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
@@ -42,6 +44,8 @@ import adminRoutes from "./routes/admin.route.js";
 // ============================================
 
 
+
+import { getNutritionist, getNutritionistById,createAppointment } from './routes/nutritionist.js'; // ফাইলের বানান যেমন আছে वैसेই দেওয়া হলো
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -103,6 +107,23 @@ app.use("/api/community", communityRoutes);
 // ============================================
 // MEAL ANALYSIS
 // ============================================
+
+
+//================================
+// nutrionist route
+//==================================
+app.get('/api/nutritionist', getNutritionist);
+
+app.get('/api/nutritionist/:id', getNutritionistById);
+
+app.post('/api/appointments', createAppointment);
+
+
+
+//================================
+// nutrionist route
+//==================================
+
 
 app.post(
   "/api/meals/analyze",
@@ -261,6 +282,12 @@ app.use("/api/meal-profile", mealProfileRoutes);
 app.use("/api/pantry", foodWasteManagerRoutes);
 
 // ============================================
+// SMART SHOPPING LIST ROUTES
+// ============================================
+
+app.use("/api/shopping-list", shoppingListRoutes);
+
+// ============================================
 // RECIPE MATCHER AI
 // ============================================
 
@@ -317,6 +344,9 @@ app.get("/db-test", async (req, res) => {
 // ============================================
 // LOCAL SERVER
 // ============================================
+
+
+
 
 if (process.env.NODE_ENV !== "production") {
   app.listen(PORT, () => {
