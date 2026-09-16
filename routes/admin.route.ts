@@ -1,13 +1,13 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../src/lib/prisma.js";
 import { auth } from "../src/lib/auth.js";
-
+import { fromNodeHeaders } from "better-auth/node";
 const router = Router();
 
 // Middleware to verify admin
-async function requireAdmin(req: Request, res: Response, next: Function) {
+export async function requireAdmin(req: Request, res: Response, next: Function) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers as any });
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (!session?.user?.id) return res.status(401).json({ message: "Unauthorized" });
     
     const user = await prisma.user.findUnique({ where: { id: session.user.id } });

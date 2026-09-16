@@ -1,13 +1,13 @@
 import express, { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
+import { fromNodeHeaders } from "better-auth/node";
 import { auth } from "../lib/auth.js";
-
 const router = express.Router();
 
 // Helper: get authenticated userId
 async function getUserId(req: Request): Promise<string | null> {
   try {
-    const session = await auth.api.getSession({ headers: req.headers as any });
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (session?.user?.id) return session.user.id;
   } catch (error) {
     // Ignore error and fall through to fallback

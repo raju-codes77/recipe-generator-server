@@ -184,8 +184,8 @@ export const RecipeController = {
       const recipes = await RecipeService.findRecipes(
         whereClause,
         orderByObj,
-        undefined,
-        undefined
+        undefined as any,
+        undefined as any
       );
 
       return res.status(200).json({

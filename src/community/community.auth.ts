@@ -1,19 +1,11 @@
 import type { Request } from "express";
 import { auth } from "../lib/auth.js";
+import { fromNodeHeaders } from "better-auth/node";
 import type { AuthenticatedCommunityUser } from "./community.types.js";
 import { prisma } from "../lib/prisma.js";
 
-function requestHeaders(req: Request): Headers {
-  const headers = new Headers();
-  for (const [name, value] of Object.entries(req.headers)) {
-    if (Array.isArray(value)) value.forEach((item) => headers.append(name, item));
-    else if (typeof value === "string") headers.set(name, value);
-  }
-  return headers;
-}
-
 export async function getOptionalCommunityUser(req: Request): Promise<AuthenticatedCommunityUser | null> {
-  const session = await auth.api.getSession({ headers: requestHeaders(req) });
+  const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
   if (session?.user) {
     return {
       id: session.user.id,

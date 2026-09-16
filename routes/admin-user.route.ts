@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { prisma } from "../src/lib/prisma.js";
+import { requireAdmin } from "./admin.route.js";
+
 const router = Router();
+
+router.use(requireAdmin);
 
 // ================= GET ALL USERS =================
 router.get("/users", async (req, res) => {
