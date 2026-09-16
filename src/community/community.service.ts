@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma";
 import { TEXT_ONLY_POST_IMAGE } from "./community.validation";
 import type { AuthenticatedCommunityUser, CreateCommunityPostInput } from "./community.types";
+import { NotificationService, NotificationType } from "../services/notification.service";
+
 
 function timeAgo(value: Date): string {
   const seconds = Math.max(1, Math.floor((Date.now() - value.getTime()) / 1000));
@@ -46,8 +48,18 @@ export class CommunityService {
   private async notifyPostOwner(postId: string, actorId: string, type: string, text: string) {
     const post = await prisma.communityPost.findUnique({ where: { id: postId }, select: { authorId: true } });
     if (!post || post.authorId === actorId) return;
-    await prisma.communityNotification.create({
-      data: { userId: post.authorId, actorId, type, text, targetPostId: postId },
+    
+    // Map community legacy types if needed, or cast directly
+    const mappedType: NotificationType = type === "like" ? "POST_LIKE" : type === "comment" ? "POST_COMMENT" : "GENERAL";
+    
+    await NotificationService.createNotification({
+      userId: post.authorId,
+      actorId,
+      type: mappedType,
+      title: "Community Update",
+      message: text,
+      relatedPostId: postId,
+      actionUrl: `/community` // Fallback to community feed since there is no standalone post route
     });
   }
 
@@ -735,10 +747,16 @@ export class CommunityService {
     const existing = await prisma.communityFollow.findUnique({ where });
     if (existing) await prisma.communityFollow.delete({ where });
     else await prisma.communityFollow.create({ data: { followerId, followingId } });
-    if (!existing)
-      await prisma.communityNotification.create({
-        data: { userId: followingId, actorId: followerId, type: "FOLLOW", text: "started following you" },
+    if (!existing) {
+      await NotificationService.createNotification({
+        userId: followingId,
+        actorId: followerId,
+        type: "FOLLOW",
+        title: "New Follower",
+        message: "started following you",
+        actionUrl: `/community/users/${followerId}`
       });
+    }
     return { active: !existing };
   }
 

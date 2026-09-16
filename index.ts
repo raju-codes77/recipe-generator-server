@@ -22,6 +22,7 @@ import { prisma } from "./src/lib/prisma.js";
 
 import { analyzeMeal } from "./src/services/meal-analyze.service.js";
 import { trackAiUsage } from "./src/services/ai-usage.service.js";
+import { NotificationService } from "./src/services/notification.service.js";
 
 // ============================================
 // EXISTING ROUTES
@@ -45,6 +46,8 @@ import adminRoutes from "./routes/admin.route.js";
 import wellnessRouter from "./src/routes/wellness.routes.js";
 import { aiUsageRouter } from "./src/routes/ai-usage.routes.js";
 import aiNutritionistRoutes from "./routes/ai-nutritionist.routes.js";
+import notificationRoutes from "./src/routes/notification.routes.js";
+
 
 // old human nutritionist imports removed
 const app = express();
@@ -107,6 +110,8 @@ app.use("/api/community", communityRoutes);
 app.use("/api/wellness-reminders", wellnessRouter);
 app.use("/api/ai-usage", aiUsageRouter);
 app.use("/api/ai-nutritionist", aiNutritionistRoutes);
+app.use("/api/notifications", notificationRoutes);
+
 
 // ============================================
 // MEAL ANALYSIS
@@ -203,6 +208,15 @@ app.post(
 
         // Attach persisted ID
         result.mealId = savedMeal.id;
+
+        // Trigger Notification
+        await NotificationService.createNotification({
+          userId,
+          type: "MEAL_ANALYSIS_SUCCESS",
+          title: "Meal Analyzed",
+          message: "Your meal photo has been successfully analyzed.",
+          actionUrl: "/ai-tools/nutrition-analyzer",
+        });
       } else {
         console.log("[MEAL POST] SKIPPED DB insert - userId undefined or calories missing. userId:", userId, "calories:", result.calories);
       }
