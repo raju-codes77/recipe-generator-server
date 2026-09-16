@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma";
 import { TEXT_ONLY_POST_IMAGE } from "./community.validation";
 import type { AuthenticatedCommunityUser, CreateCommunityPostInput } from "./community.types";
+import { moderateCommunityPost, moderateCommunityStory } from "./community-moderation.service";
 
 function timeAgo(value: Date): string {
   const seconds = Math.max(1, Math.floor((Date.now() - value.getTime()) / 1000));
@@ -538,6 +539,7 @@ export class CommunityService {
   }
 
   async createPost(user: AuthenticatedCommunityUser, input: CreateCommunityPostInput) {
+    await moderateCommunityPost(input);
     const createdPost = await prisma.$transaction(async (tx) => {
       let recipeId: string | undefined;
       if (input.recipe) {
@@ -887,7 +889,8 @@ export class CommunityService {
     });
   }
 
-  createStory(userId: string, imageUrl: string, caption: string, tag?: string) {
+  async createStory(userId: string, imageUrl: string, caption: string, tag?: string) {
+    await moderateCommunityStory(imageUrl, caption);
     return prisma.communityStory.create({
       data: { authorId: userId, imageUrl, caption, tag, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
     });
