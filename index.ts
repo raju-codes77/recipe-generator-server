@@ -49,6 +49,21 @@ import { getNutritionist, getNutritionistById,createAppointment } from './routes
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const configuredClientOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_URL,
+  process.env.NEXT_PUBLIC_APP_URL,
+]
+  .flatMap((value) => value?.split(",") ?? [])
+  .map((value) => value.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
+const allowedClientOrigins = Array.from(new Set([
+  "http://localhost:3000",
+  "https://food-canvas.vercel.app",
+  ...configuredClientOrigins,
+]));
+
 const upload = multer({
   storage: multer.memoryStorage(),
 });
@@ -59,10 +74,7 @@ const upload = multer({
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://food-canvas.vercel.app",
-    ],
+    origin: allowedClientOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [

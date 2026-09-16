@@ -117,12 +117,12 @@ export class CommunityService {
           FROM "CommunityPost" p
           LEFT JOIN "CommunityReaction" reaction
             ON reaction."postId" = p."id" AND reaction."type" = 'LIKE'
-          LEFT JOIN "CommunityReview" review
-            ON review."postId" = p."id"
+          LEFT JOIN "CommunityComment" comment
+            ON comment."postId" = p."id"
           GROUP BY p."id", p."isPinned", p."createdAt"
           ORDER BY p."isPinned" DESC,
             COUNT(DISTINCT reaction."id") DESC,
-            COALESCE(AVG(review."rating"), 0) DESC,
+            COUNT(DISTINCT comment."id") DESC,
             p."createdAt" DESC
           LIMIT ${take} OFFSET ${skip}
         `;
@@ -414,7 +414,7 @@ export class CommunityService {
     const skip = Math.max(options.skip ?? 0, 0);
     const [pagePosts, stories, profileStatsRows] = await Promise.all([
       this.listPosts(viewerId, { authorId: userId, take: take + 1, skip }),
-      this.listStories(userId),
+      this.listStories(userId, viewerId),
       prisma.$queryRaw<Array<{
         postsTotal: number;
         recipesTotal: number;
@@ -854,12 +854,17 @@ export class CommunityService {
     return { active: true };
   }
 
-  async listStories(authorId?: string) {
+  async listStories(authorId?: string, viewerId?: string | null) {
     const stories = await prisma.communityStory.findMany({
       where: { expiresAt: { gt: new Date() }, ...(authorId ? { authorId } : {}) },
       orderBy: { createdAt: "desc" },
     });
     const users = await usersById(stories.map((story) => story.authorId));
+    const reactedStoryIds = viewerId
+      ? new Set((await prisma.$queryRaw<Array<{ storyId: string }>>`
+          SELECT "storyId" FROM "CommunityStoryReaction" WHERE "userId" = ${viewerId}
+        `).map((reaction) => reaction.storyId))
+      : new Set<string>();
     return stories.map((story) => {
       const author = users.get(story.authorId);
       return {
@@ -876,6 +881,7 @@ export class CommunityService {
         imageUrl: story.imageUrl,
         caption: story.caption,
         tag: story.tag || undefined,
+        reacted: reactedStoryIds.has(story.id),
         timestamp: timeAgo(story.createdAt),
       };
     });
@@ -977,10 +983,29 @@ export class CommunityService {
       select: { viewerId: true, viewedAt: true },
     });
     const users = await usersById(views.map((view) => view.viewerId));
+    const reactedViewerIds = new Set((await prisma.$queryRaw<Array<{ userId: string }>>`
+      SELECT "userId" FROM "CommunityStoryReaction" WHERE "storyId" = ${storyId}
+    `).map((reaction) => reaction.userId));
     return views.map((view) => {
       const viewer = users.get(view.viewerId);
-      return { id: view.viewerId, name: viewer?.name || "Community Cook", avatar: viewer?.image || "", viewedAt: view.viewedAt };
+      return { id: view.viewerId, name: viewer?.name || "Community Cook", avatar: viewer?.image || "", viewedAt: view.viewedAt, reacted: reactedViewerIds.has(view.viewerId) };
     });
+  }
+
+  async reactToStory(userId: string, storyId: string) {
+    const story = await prisma.communityStory.findFirst({
+      where: { id: storyId, expiresAt: { gt: new Date() } },
+      select: { id: true, authorId: true },
+    });
+    if (!story) throw Object.assign(new Error("Story not found"), { statusCode: 404 });
+    if (story.authorId === userId) throw Object.assign(new Error("You cannot react to your own story"), { statusCode: 400 });
+
+    await prisma.$executeRaw`
+      INSERT INTO "CommunityStoryReaction" ("id", "storyId", "userId")
+      VALUES (${randomUUID()}, ${storyId}, ${userId})
+      ON CONFLICT ("storyId", "userId") DO NOTHING
+    `;
+    return true as const;
   }
 
   async updateProfile(userId: string, input: unknown) {
