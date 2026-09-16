@@ -421,6 +421,8 @@ export class CommunityService {
         likesTotal: number;
         followersCount: number;
         followingCount: number;
+        collectionsCount: number;
+        favoritesCount: number;
         isFollowing: boolean;
       }>>`
         SELECT
@@ -435,6 +437,8 @@ export class CommunityService {
           ), 0)::int AS "likesTotal",
           (SELECT COUNT(*)::int FROM "CommunityFollow" WHERE "followingId" = ${userId}) AS "followersCount",
           (SELECT COUNT(*)::int FROM "CommunityFollow" WHERE "followerId" = ${userId}) AS "followingCount",
+          (SELECT COUNT(*)::int FROM "Collection" WHERE "userId" = ${userId}) AS "collectionsCount",
+          (SELECT COUNT(*)::int FROM "Favorite" WHERE "userId" = ${userId}) AS "favoritesCount",
           EXISTS(
             SELECT 1 FROM "CommunityFollow"
             WHERE "followerId" = ${viewerId}
@@ -461,6 +465,9 @@ export class CommunityService {
         coverImage: user.coverImage || "",
         role: "user" as const,
         followersCount: profileStats.followersCount,
+        followingCount: profileStats.followingCount,
+        collectionsCount: profileStats.collectionsCount,
+        favoritesCount: profileStats.favoritesCount,
         isFollowing: profileStats.isFollowing,
         recipesCount: profileStats.recipesTotal,
       },
