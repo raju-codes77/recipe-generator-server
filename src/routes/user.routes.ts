@@ -13,12 +13,6 @@ async function getUserId(req: Request): Promise<string | null> {
     // Ignore error and fall through to fallback
   }
 
-  // Fallback to userId from query or body
-  const fallbackUserId = req.query?.userId || req.body?.userId;
-  if (fallbackUserId && typeof fallbackUserId === "string" && fallbackUserId !== "undefined") {
-    return fallbackUserId;
-  }
-
   return null;
 }
 

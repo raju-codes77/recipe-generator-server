@@ -239,12 +239,14 @@ export const RecipeController = {
   // Check Favorite
   async checkFavorite(req: Request, res: Response) {
     try {
-      const { userId, recipeId } = req.query;
+      const user = await requireCommunityUser(req);
+      const userId = user.id;
+      const { recipeId } = req.query;
 
-      if (!userId || !recipeId) {
+      if (!recipeId) {
         return res.status(400).json({
           success: false,
-          message: "userId and recipeId are required",
+          message: "recipeId is required",
         });
       }
 
@@ -348,14 +350,8 @@ export const RecipeController = {
   // Get Collections
   async getCollections(req: Request, res: Response) {
     try {
-      const { userId } = req.query;
-
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          message: "UserId is required",
-        });
-      }
+      const user = await requireCommunityUser(req);
+      const userId = user.id;
 
       const collections = await RecipeService.getCollections(
         String(userId)
