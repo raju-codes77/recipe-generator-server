@@ -313,25 +313,26 @@ app.use("/api/dashboard", dashboardRoutes);
 // DATABASE TEST
 // ============================================
 
-app.get("/db-test", async (req, res) => {
-  try {
-    const users = await prisma.user.findMany();
+if (process.env.NODE_ENV !== "production") {
+  app.get("/db-test", async (req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
 
-    res.json({
-      success: true,
-      message: "Database connected successfully",
-      users,
-    });
+      res.json({
+        success: true,
+        message: "Database connected successfully",
+      });
 
-  } catch (error) {
-    console.error(error);
+    } catch (error) {
+      console.error(error);
 
-    res.status(500).json({
-      success: false,
-      message: "Database connection request failed",
-    });
-  }
-});
+      res.status(500).json({
+        success: false,
+        message: "Database connection request failed",
+      });
+    }
+  });
+}
 
 // ============================================
 // LOCAL SERVER
