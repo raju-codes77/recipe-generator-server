@@ -2,12 +2,11 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import { toNodeHandler } from "better-auth/node";
+import { toNodeHandler, fromNodeHeaders } from "better-auth/node";
 
 import ingredientSubstitutionRoutes from "./routes/ingredientSubstitution.route.js";
 import mealPlannerRoutes from "./routes/mealPlanner.route.js";
 import mealProfileRoutes from "./src/routes/mealProfile.routes.js";
-import foodWasteManagerRoutes from "./src/routes/pantry.routes.js";
 
 
 // ============================================
@@ -128,7 +127,7 @@ app.post(
       // 1. Authenticate user
       let userId: string | undefined;
       try {
-        const session = await auth.api.getSession({ headers: req.headers as any });
+        const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
         if (session?.user?.id) userId = session.user.id;
       } catch (error) {}
 
@@ -262,12 +261,6 @@ app.use("/api/challenges", challengeRoutes);
 // ============================================
 
 app.use("/api/meal-profile", mealProfileRoutes);
-
-// ============================================
-// FOOD WASTE MANAGER ROUTES
-// ============================================
-
-app.use("/api/pantry", foodWasteManagerRoutes);
 
 // ============================================
 // SMART SHOPPING LIST ROUTES

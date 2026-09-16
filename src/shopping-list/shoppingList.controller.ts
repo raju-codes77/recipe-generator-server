@@ -1,16 +1,10 @@
 import { Request, Response } from "express";
 import { auth } from "../lib/auth.js";
+import { fromNodeHeaders } from "better-auth/node";
 import { ShoppingListService } from "./shoppingList.service.js";
-
 async function getAuthUserId(req: Request): Promise<string | null> {
   try {
-    const headers = new Headers();
-    for (const [name, value] of Object.entries(req.headers)) {
-      if (Array.isArray(value)) value.forEach((item) => headers.append(name, item));
-      else if (typeof value === "string") headers.set(name, value);
-    }
-
-    const session = await auth.api.getSession({ headers });
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     return session?.user?.id ?? null;
   } catch {
     return null;

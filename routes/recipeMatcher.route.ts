@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../src/lib/prisma.js";
+import { fromNodeHeaders } from "better-auth/node";
 import { auth } from "../src/lib/auth.js";
-
 const router = Router();
 
 const FOOD_IMAGE_POOL: { url: string; tags: string[] }[] = [
@@ -36,7 +36,7 @@ function pickFromPoolByKeywords(text: string): string {
 // GET /api/taste-profile
 router.get("/taste-profile", async (req: Request, res: Response) => {
   try {
-    const session = await auth.api.getSession({ headers: req.headers as any }).catch(() => null);
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) }).catch(() => null);
     const userId = session?.user?.id || req.query?.userId || req.body?.userId;
     if (!userId || typeof userId !== "string" || userId === "undefined") {
       return res.status(401).json({ success: false, error: "Unauthorized" });
@@ -56,7 +56,7 @@ router.get("/taste-profile", async (req: Request, res: Response) => {
 // POST /api/match-recipes
 router.post("/match-recipes", async (req: Request, res: Response) => {
   try {
-    const session = await auth.api.getSession({ headers: req.headers as any }).catch(() => null);
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) }).catch(() => null);
     const userId = session?.user?.id || req.query?.userId || req.body?.userId;
     if (!userId || typeof userId !== "string" || userId === "undefined") {
       return res.status(401).json({ success: false, error: "Unauthorized. Please log in to match recipes." });

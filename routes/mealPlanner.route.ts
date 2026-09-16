@@ -1,8 +1,8 @@
 import { Router, Request, Response } from "express";
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { prisma } from "../src/lib/prisma.js";
-import { auth } from "../src/lib/auth.js";
-import { groqClient, getGroqModel } from "../src/config/groq.js";
+import { fromNodeHeaders } from "better-auth/node";
+import { auth } from "../src/lib/auth.js";import { groqClient, getGroqModel } from "../src/config/groq.js";
 
 const router = Router();
 
@@ -12,7 +12,7 @@ const ai = new GoogleGenAI({
 
 async function getUserId(req: Request): Promise<string | null> {
   try {
-    const session = await auth.api.getSession({ headers: req.headers as any });
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (session?.user?.id) return session.user.id;
   } catch (error) {
     // Ignore error and fall through to fallback

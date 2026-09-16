@@ -1,18 +1,21 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../src/lib/prisma.js";
 import { auth } from "../src/lib/auth.js";
-
+import { fromNodeHeaders } from "better-auth/node";
 const router = Router();
 
 // Helper to get authenticated user
 async function getAuthenticatedUser(req: Request) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers as any });
-    if (!session?.user?.id) return null;
-    return await prisma.user.findUnique({ where: { id: session.user.id } });
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+    if (session?.user?.id) {
+      return await prisma.user.findUnique({ where: { id: session.user.id } });
+    }
   } catch (error) {
-    return null;
+    console.error("[AUTH] Error getting session:", error);
   }
+
+  return null;
 }
 
 // ─── USER DASHBOARD OVERVIEW ──────────────────────────────────────────────
@@ -140,7 +143,8 @@ router.get("/admin/overview", async (req: Request, res: Response) => {
     const user = await getAuthenticatedUser(req);
     // Simple role check, adjust based on actual admin logic in the app
     if (!user) return res.status(401).json({ message: "Unauthorized" });
-    if (user.role !== "ADMIN" && user.role !== "admin" && user.email !== "admin@foodcanvas.com") { 
+    const userRole = String(user.role || "").trim().toLowerCase();
+    if (userRole !== "admin" && user.email !== "admin@foodcanvas.com") { 
        return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -262,7 +266,7 @@ router.get("/admin/overview", async (req: Request, res: Response) => {
         title: r.title,
         author: r.user?.name || "Unknown",
         time: r.createdAt,
-        cal: r.kcal ? `${r.kcal} kcal` : "--"
+        cal: (r as any).calories ? `${(r as any).calories} kcal` : "--"
       })),
       recentUsers: recentUsersList.map(u => ({
         name: u.name,

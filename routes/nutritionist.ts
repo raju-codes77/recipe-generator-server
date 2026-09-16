@@ -20,7 +20,7 @@ export const getNutritionistById = async (req: Request, res: Response): Promise<
     const { data, error } = await supabase
       .from("nutritionist")
       .select("*")
-      .eq("id", id.trim())
+      .eq("id", String(id).trim())
       .single();
 
     if (error) {
