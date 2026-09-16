@@ -148,7 +148,7 @@ export const getChallengeById = async (req: Request, res: Response): Promise<any
 // POST /api/challenges/:id/join
 export const joinChallenge = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userId = String((req as any).user?.id || req.body?.userId); 
+    const userId = String((req as any).user?.id); 
     if (!userId || userId === "undefined") return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const challengeId = String(req.params.id);
@@ -195,7 +195,7 @@ export const joinChallenge = async (req: Request, res: Response): Promise<any> =
 // GET /api/challenges/:challengeId/participant
 export const getChallengeParticipant = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userId = String((req as any).user?.id || req.query?.userId); 
+    const userId = String((req as any).user?.id); 
     if (!userId || userId === "undefined") return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const challengeId = String(req.params.challengeId);
@@ -215,7 +215,7 @@ export const getChallengeParticipant = async (req: Request, res: Response): Prom
 // POST /api/challenges/:challengeId/days/:dayId/complete
 export const completeChallengeDay = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userId = String((req as any).user?.id || req.body?.userId); 
+    const userId = String((req as any).user?.id); 
     if (!userId || userId === "undefined") return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const challengeId = String(req.params.challengeId);
