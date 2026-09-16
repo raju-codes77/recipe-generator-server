@@ -361,4 +361,17 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
+// ============================================
+// GLOBAL ERROR HANDLER
+// ============================================
+
+app.use((req, res, next) => {
+  res.status(404).json({ error: "Not Found" });
+});
+
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Global Error:", err);
+  res.status(500).json({ error: "Internal Server Error", message: err.message });
+});
+
 export default app;
