@@ -37,6 +37,7 @@ import challengeRoutes from "./src/routes/challenge.routes.js";
 import shoppingListRoutes from "./src/shopping-list/shoppingList.routes.js";
 import adminUserRoutes from "./routes/admin-user.route.js";
 import aiChatRoutes from "./routes/ai-chat.routes.js";
+import recipeAiRoutes from "./src/routes/recipe-ai.routes.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
 import adminRoutes from "./routes/admin.route.js";
 
@@ -315,6 +316,7 @@ app.use("/api/admin", adminRoutes);
 // 15. AI Chat / Consultant Route
 // ─────────────────────────────────────────────────────────────────────────────
 app.use("/api", aiChatRoutes);
+app.use("/api/recipe-ai", recipeAiRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 16. Dashboard Analytics Routes
