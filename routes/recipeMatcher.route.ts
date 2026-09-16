@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../src/lib/prisma.js";
 import { fromNodeHeaders } from "better-auth/node";
 import { auth } from "../src/lib/auth.js";
+import { trackAiUsage } from "../src/services/ai-usage.service.js";
 const router = Router();
 
 const FOOD_IMAGE_POOL: { url: string; tags: string[] }[] = [
@@ -220,6 +221,9 @@ router.post("/match-recipes", async (req: Request, res: Response) => {
     scoredRecipes.sort((a, b) => b.matchScore - a.matchScore);
 
     const topRecipes = scoredRecipes.slice(0, 12);
+    
+    // Track AI Usage
+    await trackAiUsage("TASTE", userId);
 
     res.json({ success: true, recipes: topRecipes });
   } catch (error: any) {

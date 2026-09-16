@@ -37,6 +37,8 @@ model User {
   pantryItems           PantryItem[]
   mealProfile           MealProfile?
   shoppingLists         ShoppingList[]
+  wellnessPreference    WellnessPreference?
+  aiUsageEvents         AiUsageEvent[]
 }
 
 model ChatMessage {
@@ -624,4 +626,26 @@ model nutritionist {
   image_url      String?
 
   @@ignore
+}
+
+model WellnessPreference {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  enabled     Boolean  @default(true)
+  frequency   String   @default("1h") // Options: "30s", "30m", "1h", "2h"
+  categories  String[] @default(["general-wellness"])
+  lastShownAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiUsageEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  toolName  String   // e.g., "RECIPE_GENERATION", "NUTRITION_ANALYSIS", "TASTE_MATCH", "WELLNESS_REMINDER", "AI_CHALLENGE"
+  createdAt DateTime @default(now())
+  
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([toolName, createdAt])
 }

@@ -1,11 +1,12 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { groqClient, getGroqModel } from "../config/groq.js";
 
 // Initialize the Google Gen AI SDK
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const challengeSchema: Schema = {
   type: Type.ARRAY,
-  description: "List of exactly 4 cooking and health challenges.",
+  description: "List of exactly 1 cooking and health challenge.",
   items: {
     type: Type.OBJECT,
     properties: {
@@ -34,24 +35,24 @@ const challengeSchema: Schema = {
 };
 
 export async function generateAIChallenges(personalizationContext?: string) {
-  try {
-    const prompt = `
-      You are an expert chef and nutritionist for the FoodCanvas app.
-      Generate 4 diverse, engaging, and unique cooking or healthy eating challenges.
-      ${personalizationContext ? `Tailor the challenges to this user context: ${personalizationContext}` : 'Make them generally appealing to a wide audience.'}
-      
-      CRITICAL INSTRUCTIONS:
-      1. The "description" field MUST be a short, actionable overview (e.g., "Reset your taste buds by reducing added sugar and focusing on whole foods.").
-      2. The "days" array MUST represent actionable "Mission Points".
-      3. Each day's "title" MUST begin with an appropriate emoji (e.g., "🥤 Day 1 — Cut Sugary Drinks").
-      4. Each day's "description" MUST contain a direct, actionable instruction (e.g., "Avoid soft drinks, packaged juices, and sweetened beverages.").
-      5. Generate practical, achievable actions relevant to the challenge's difficulty and category.
-      6. Do NOT include any markdown formatting. Generate structured JSON exactly matching the schema.
-      
-      Ensure the output strictly adheres to the requested JSON schema.
-      Use high-quality unsplash image URLs for the coverImage, for example: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1200&auto=format&fit=crop&q=80' (vary the photo IDs based on the topic).
-    `;
+  const prompt = `
+    You are an expert chef and nutritionist for the FoodCanvas app.
+    Generate 1 diverse, engaging, and unique cooking or healthy eating challenge.
+    ${personalizationContext ? `Tailor the challenge to this user context: ${personalizationContext}` : 'Make it generally appealing to a wide audience.'}
+    
+    CRITICAL INSTRUCTIONS:
+    1. The "description" field MUST be a short, actionable overview (e.g., "Reset your taste buds by reducing added sugar and focusing on whole foods.").
+    2. The "days" array MUST represent actionable "Mission Points".
+    3. Each day's "title" MUST begin with an appropriate emoji (e.g., "🥤 Day 1 — Cut Sugary Drinks").
+    4. Each day's "description" MUST contain a direct, actionable instruction (e.g., "Avoid soft drinks, packaged juices, and sweetened beverages.").
+    5. Generate practical, achievable actions relevant to the challenge's difficulty and category.
+    6. Do NOT include any markdown formatting. Generate structured JSON exactly matching the schema.
+    
+    Ensure the output strictly adheres to the requested JSON schema.
+    Use high-quality unsplash image URLs for the coverImage, for example: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1200&auto=format&fit=crop&q=80' (vary the photo IDs based on the topic).
+  `;
 
+  try {
     const response = await ai.models.generateContent({
       model: "gemini-3.6-flash",
       contents: prompt,
@@ -65,8 +66,31 @@ export async function generateAIChallenges(personalizationContext?: string) {
     
     const challenges = JSON.parse(response.text);
     return challenges;
-  } catch (error) {
-    console.error("Failed to generate AI challenges:", error);
-    throw error;
+  } catch (error: any) {
+    console.warn("Gemini failed, falling back to Groq:", error.message);
+    try {
+      const groqPrompt = prompt + "\n\n" + "Respond with ONLY raw JSON like: { \"challenges\": [ { ... } ] }. Use this schema for the items: " + JSON.stringify(challengeSchema.items);
+      const completion = await groqClient.chat.completions.create({
+        model: getGroqModel(),
+        messages: [
+          { role: "system", content: "You always respond with valid raw JSON only. Return a JSON object with a 'challenges' key containing an array of exactly 1 challenge." },
+          { role: "user", content: groqPrompt },
+        ],
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+      });
+
+      const raw = completion.choices[0]?.message?.content;
+      if (!raw) throw new Error("Empty response from Groq");
+      
+      const result = JSON.parse(raw);
+      if (result.challenges && Array.isArray(result.challenges)) {
+        return result.challenges;
+      }
+      return [result]; // fallback if it just returns the object directly
+    } catch (groqError: any) {
+      console.error("Groq fallback also failed:", groqError.message);
+      throw groqError;
+    }
   }
 }

@@ -45,21 +45,50 @@ Here is a map of the website pages for reference:
 Be helpful, warm, and concise in all your responses.
 `;
 
-    // gemini-3.5-flash মডেল এবং systemInstruction ব্যবহার করে রিকোয়েস্ট পাঠানো হচ্ছে
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      config: {
-        systemInstruction: siteMapContext,
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: userMessage.trim() }],
-        },
-      ],
-    });
+    const primaryModel = process.env.GEMINI_CHAT_MODEL || "gemini-1.5-flash";
+    const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-1.5-pro";
+    const maxRetries = 3;
+    const delays = [1000, 2000, 4000];
 
-    const reply = response.text || "I couldn't process that query.";
+    let reply = "I couldn't process that query.";
+    let success = false;
+    let attempt = 0;
+    
+    while (attempt <= maxRetries && !success) {
+      try {
+        const modelToUse = attempt === maxRetries ? fallbackModel : primaryModel;
+        
+        const response = await ai.models.generateContent({
+          model: modelToUse,
+          config: {
+            systemInstruction: siteMapContext,
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userMessage.trim() }],
+            },
+          ],
+        });
+        
+        reply = response.text || reply;
+        success = true;
+      } catch (error: any) {
+        const isUnavailable = error?.status === 503 || error?.message?.includes("UNAVAILABLE") || error?.message?.includes("high demand");
+        
+        if (isUnavailable && attempt < maxRetries) {
+          console.warn(`[AI Chat] Attempt ${attempt + 1} failed with 503. Retrying in ${delays[attempt]}ms...`);
+          await new Promise(res => setTimeout(res, delays[attempt]));
+          attempt++;
+        } else {
+          console.error("[AI Chat] Final failure or non-retryable error:", { status: error?.status, message: error?.message });
+          return res.status(503).json({
+            success: false,
+            message: "The AI service is temporarily busy. Please try again in a moment.",
+          });
+        }
+      }
+    }
 
     await prisma.chatMessage.create({
       data: {
@@ -73,11 +102,11 @@ Be helpful, warm, and concise in all your responses.
       reply,
     });
   } catch (error: any) {
-    console.error("AI Chat Error:", error);
+    console.error("AI Chat Unexpected Error:", { message: error?.message });
 
     return res.status(500).json({
       success: false,
-      reply: "AI core transmission failure. Try again.",
+      message: "An unexpected error occurred. Please try again.",
     });
   }
 });

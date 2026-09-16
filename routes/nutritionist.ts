@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { supabase } from "../src/lib/supabase.js";
+import { fromNodeHeaders } from "better-auth/node";
+import { auth } from "../src/lib/auth.js";
 
 // সব নিউট্রিশনিস্ট পাওয়ার ফাংশন
 export const getNutritionist = async (req: Request, res: Response): Promise<void> => {
@@ -38,6 +40,12 @@ export const getNutritionistById = async (req: Request, res: Response): Promise<
 export const createAppointment = async (req: Request, res: Response): Promise<void> => {
   try {
     const { nutritionistId, patientName, email, phone, appointmentDate, slotTime } = req.body;
+
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+    if (!session || !session.user) {
+      res.status(401).json({ success: false, message: "Unauthorized: Please log in to book a consultation." });
+      return;
+    }
 
     if (!nutritionistId || !patientName || !email || !phone || !appointmentDate || !slotTime) {
       res.status(400).json({ success: false, message: "All fields are required." });
