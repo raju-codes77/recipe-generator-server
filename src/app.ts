@@ -3,12 +3,12 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 // existing routes (আপনার প্রজেক্টে যা যা আগে থেকে আছে, সেগুলো এখানে বসান)
-// import authRoutes from "./routes/authRoutes";
-// import communityRoutes from "./routes/communityRoutes";
-// import recipeRoutes from "./routes/recipeRoutes";
+// import authRoutes from "./routes/authRoutes.js";
+// import communityRoutes from "./routes/communityRoutes.js";
+// import recipeRoutes from "./routes/recipeRoutes.js";
 
 // নতুন pantry-to-plate route
-import pantryRoutes from "../routes/pantryRoutes";
+import pantryRoutes from "../routes/pantryRoutes.js";
 
 dotenv.config();
 

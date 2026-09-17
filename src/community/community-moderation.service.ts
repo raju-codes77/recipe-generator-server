@@ -1,7 +1,7 @@
 import Groq from "groq-sdk";
 import { GoogleGenAI } from "@google/genai";
-import { TEXT_ONLY_POST_IMAGE } from "./community.validation";
-import type { CreateCommunityPostInput } from "./community.types";
+import { TEXT_ONLY_POST_IMAGE } from "./community.validation.js";
+import type { CreateCommunityPostInput } from "./community.types.js";
 
 type ModerationKind = "post" | "story";
 

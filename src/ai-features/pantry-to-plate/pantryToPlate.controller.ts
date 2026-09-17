@@ -1,6 +1,6 @@
 // import { Request, Response } from "express";
-// import { generateAndSaveRecipe } from "./pantryToPlate.service";
-// // import { generateAndSaveRecipe } from "./pantryToPlate.service";
+// import { generateAndSaveRecipe } from "./pantryToPlate.service.js";
+// // import { generateAndSaveRecipe } from "./pantryToPlate.service.js";
 
 // export async function generateRecipeHandler(req: Request, res: Response) {
 //   try {

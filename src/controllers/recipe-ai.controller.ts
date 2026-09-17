@@ -5,7 +5,7 @@ import { generateRecipeChatResponse, RecipeContext } from "../services/recipe-ai
 export const handleRecipeChat = async (req: Request, res: Response) => {
   try {
     const { recipeId, message, history = [] } = req.body;
-    const userId = req.user?.id || req.body.userId; // adjust based on auth middleware
+    const userId = (req as any).user?.id || req.body.userId; // adjust based on auth middleware
 
     if (!userId) {
       return res.status(401).json({ success: false, message: "Unauthorized" });

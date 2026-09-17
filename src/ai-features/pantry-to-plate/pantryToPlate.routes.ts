@@ -1,5 +1,5 @@
 // import { Router } from "express";
-// import { generateRecipeHandler } from "./pantryToPlate.controller";
+// import { generateRecipeHandler } from "./pantryToPlate.controller.js";
 
 // const router = Router();
 

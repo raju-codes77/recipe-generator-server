@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
 import { z } from "zod";
-import { generateRecipe, refineRecipe } from "../services/groqService";
-import { prisma } from "../lib/prisma";
-import { auth } from "../lib/auth";
+import { generateRecipe, refineRecipe } from "../services/groqService.js";
+import { prisma } from "../lib/prisma.js";
+import { auth } from "../lib/auth.js";
 import { fromNodeHeaders } from "better-auth/node";
-import { trackAiUsage } from "../services/ai-usage.service";
+import { trackAiUsage } from "../services/ai-usage.service.js";
 
 const generateSchema = z.object({
   ingredients: z.array(z.string()).min(1),
