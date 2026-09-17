@@ -4,9 +4,15 @@ import { fromNodeHeaders } from "better-auth/node";
 import { ShoppingListService } from "./shoppingList.service.js";
 async function getAuthUserId(req: Request): Promise<string | null> {
   try {
+    const hasCookie = Boolean(req.headers.cookie);
     const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-    return session?.user?.id ?? null;
-  } catch {
+    const userId = session?.user?.id ?? null;
+    if (!userId) {
+      console.log(`[ShoppingList Auth] Session not resolved. Cookie present: ${hasCookie}, path: ${req.path}`);
+    }
+    return userId;
+  } catch (err: any) {
+    console.error("[ShoppingList Auth] Error resolving session:", err?.message || err);
     return null;
   }
 }
