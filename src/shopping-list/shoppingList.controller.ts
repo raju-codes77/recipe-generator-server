@@ -69,12 +69,12 @@ export const ShoppingListController = {
         return res.status(401).json({ message: "Authentication required" });
       }
 
-      const { recipeId } = req.body;
+      const { recipeId, userPantryIngredients } = req.body;
       if (!recipeId || typeof recipeId !== "string" || !recipeId.trim()) {
         return res.status(400).json({ message: "Recipe ID is required" });
       }
 
-      const result = await ShoppingListService.generateFromRecipe(userId, recipeId.trim());
+      const result = await ShoppingListService.generateFromRecipe(userId, recipeId.trim(), userPantryIngredients);
       return res.status(200).json(result);
     } catch (error: any) {
       console.error("[ShoppingList] Generate From Recipe Error:", error);

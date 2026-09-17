@@ -21,6 +21,12 @@ export async function generate(req: Request, res: Response) {
     const input = generateSchema.parse(req.body);
     const recipe = await generateRecipe(input);
 
+    let userId: string | undefined;
+    try {
+      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      userId = session?.user?.id;
+    } catch (e) {}
+
     const saved = await prisma.pantryRecipe.create({
       data: {
         title: recipe.title,
@@ -39,13 +45,13 @@ export async function generate(req: Request, res: Response) {
         diet: input.diet,
         servings: input.servings,
         selectedOptions: input.selectedOptions,
+        userId: userId,
       },
     });
 
-    try {
-      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-      await trackAiUsage("RECIPES", session?.user?.id);
-    } catch (e) {}
+    if (userId) {
+      await trackAiUsage("RECIPES", userId);
+    }
 
     return res.status(200).json({
       id: saved.id,
