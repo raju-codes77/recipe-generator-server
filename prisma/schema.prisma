@@ -398,11 +398,13 @@ model CommunityMessage {
   recipientId    String
   text           String
   attachedPostId String?
+  attachedStoryId String?
   createdAt      DateTime @default(now())
 
   @@index([conversationId, createdAt])
   @@index([conversationId, createdAt, id])
   @@index([recipientId, createdAt])
+  @@index([attachedStoryId])
 }
 
 model CommunityReport {

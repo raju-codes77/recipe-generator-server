@@ -833,6 +833,12 @@ export class CommunityService {
     }));
   }
 
+  async getPost(viewerId: string | null | undefined, postId: string) {
+    const posts = await this.listPosts(viewerId, { postIds: [postId], take: 1 });
+    if (posts.length === 0) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
+    return posts[0];
+  }
+
   createCollection(userId: string, name: string, description?: string) {
     void description;
     return prisma.collection.create({ data: { userId, name } });
@@ -975,6 +981,13 @@ export class CommunityService {
     `;
 
     return rows.map(({ tag }) => `#${tag}`);
+  }
+
+  async getStory(storyId: string, viewerId?: string | null) {
+    const stories = await this.listStories(undefined, viewerId);
+    const story = stories.find((item) => item.id === storyId);
+    if (!story) throw Object.assign(new Error("Story not found or expired"), { statusCode: 404 });
+    return story;
   }
 
   async getFeedCounts(userId: string) {
@@ -1121,8 +1134,27 @@ export class CommunityService {
       if (!latestByUser.has(otherUserId)) latestByUser.set(otherUserId, message);
     }
 
-    return users.map((user) => {
+    const contactRows = await Promise.all(users.map(async (user) => {
         const latest = latestByUser.get(user.id);
+        const conversation = await prisma.communityConversation.findUnique({
+          where: { pairKey: [userId, user.id].sort().join(":") },
+          select: { id: true },
+        });
+        const membership = conversation
+          ? await prisma.communityConversationMember.findUnique({
+              where: { conversationId_userId: { conversationId: conversation.id, userId } },
+              select: { lastReadAt: true },
+            })
+          : null;
+        const unreadCount = conversation
+          ? await prisma.communityMessage.count({
+              where: {
+                conversationId: conversation.id,
+                recipientId: userId,
+                ...(membership?.lastReadAt ? { createdAt: { gt: membership.lastReadAt } } : {}),
+              },
+            })
+          : 0;
         return {
           id: user.id,
           name: user.name,
@@ -1131,8 +1163,13 @@ export class CommunityService {
           online: false,
           lastMessage: latest?.text || "Start a cooking conversation",
           lastMessageTime: latest ? timeAgo(latest.createdAt) : "",
+          unreadCount,
         };
-      });
+      }));
+    return contactRows.sort((left, right) => {
+      if (right.unreadCount !== left.unreadCount) return (right.unreadCount ?? 0) - (left.unreadCount ?? 0);
+      return left.name.localeCompare(right.name);
+    });
   }
 
   async listMessages(userId: string, otherUserId: string, options: { take?: number; skip?: number } = {}) {
@@ -1149,15 +1186,56 @@ export class CommunityService {
       skip,
     });
     const hasMore = result.length > take;
-    const messages = result
-      .slice(0, take)
-      .reverse()
-      .map((message) => ({ ...message, timestamp: timeAgo(message.createdAt) }));
+    const messages = result.slice(0, take).reverse();
+    const postIds = messages.flatMap((message) => message.attachedPostId ? [message.attachedPostId] : []);
+    const storyIds = messages.flatMap((message) => message.attachedStoryId ? [message.attachedStoryId] : []);
+    const posts = postIds.length
+      ? await prisma.communityPost.findMany({ where: { id: { in: postIds } }, select: { id: true, imageUrl: true, caption: true } })
+      : [];
+    const stories = storyIds.length
+      ? await prisma.communityStory.findMany({ where: { id: { in: storyIds } }, select: { id: true, imageUrl: true, caption: true } })
+      : [];
+    const postsById = new Map(posts.map((post) => [post.id, post]));
+    const storiesById = new Map(stories.map((story) => [story.id, story]));
+    const formattedMessages = messages.map((message) => ({
+      ...message,
+      timestamp: timeAgo(message.createdAt),
+      attachedPost: message.attachedPostId ? postsById.get(message.attachedPostId) || null : null,
+      attachedStory: message.attachedStoryId ? storiesById.get(message.attachedStoryId) || null : null,
+    }));
 
-    return { messages, hasMore };
+    await prisma.communityConversationMember.updateMany({
+      where: { conversationId: conversation.id, userId },
+      data: { lastReadAt: new Date() },
+    });
+
+    return { messages: formattedMessages, hasMore };
   }
 
-  async sendMessage(userId: string, recipientId: string, text: string, attachedPostId?: string) {
+  async markConversationRead(userId: string, otherUserId: string) {
+    const pairKey = [userId, otherUserId].sort().join(":");
+    const conversation = await prisma.communityConversation.findUnique({ where: { pairKey }, select: { id: true } });
+    if (!conversation) return;
+    await prisma.communityConversationMember.updateMany({
+      where: { conversationId: conversation.id, userId },
+      data: { lastReadAt: new Date() },
+    });
+  }
+
+  async sendMessage(userId: string, recipientId: string, text: string, attachedPostId?: string, attachedStoryId?: string) {
+    if (userId === recipientId) throw Object.assign(new Error("You cannot message yourself"), { statusCode: 400 });
+    const normalizedText = text.trim();
+    if (!normalizedText && !attachedPostId && !attachedStoryId) {
+      throw Object.assign(new Error("Message or attachment is required"), { statusCode: 400 });
+    }
+    if (attachedPostId) {
+      const post = await prisma.communityPost.findUnique({ where: { id: attachedPostId }, select: { id: true } });
+      if (!post) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
+    }
+    if (attachedStoryId) {
+      const story = await prisma.communityStory.findUnique({ where: { id: attachedStoryId }, select: { id: true } });
+      if (!story) throw Object.assign(new Error("Story not found"), { statusCode: 404 });
+    }
     const pairKey = [userId, recipientId].sort().join(":");
     const conversation = await prisma.communityConversation.upsert({
       where: { pairKey },
@@ -1172,7 +1250,7 @@ export class CommunityService {
       skipDuplicates: true,
     });
     const message = await prisma.communityMessage.create({
-      data: { conversationId: conversation.id, senderId: userId, recipientId, text, attachedPostId },
+      data: { conversationId: conversation.id, senderId: userId, recipientId, text: normalizedText, attachedPostId, attachedStoryId },
     });
     await prisma.communityNotification.create({
       data: {
