@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma";
 import { TEXT_ONLY_POST_IMAGE } from "./community.validation";
 import type { AuthenticatedCommunityUser, CreateCommunityPostInput } from "./community.types";
+import { moderateCommunityPost, moderateCommunityStory } from "./community-moderation.service";
+import { NotificationService, NotificationType } from "../services/notification.service";
+
 
 function timeAgo(value: Date): string {
   const seconds = Math.max(1, Math.floor((Date.now() - value.getTime()) / 1000));
@@ -46,8 +49,18 @@ export class CommunityService {
   private async notifyPostOwner(postId: string, actorId: string, type: string, text: string) {
     const post = await prisma.communityPost.findUnique({ where: { id: postId }, select: { authorId: true } });
     if (!post || post.authorId === actorId) return;
-    await prisma.communityNotification.create({
-      data: { userId: post.authorId, actorId, type, text, targetPostId: postId },
+    
+    // Map community legacy types if needed, or cast directly
+    const mappedType: NotificationType = type === "like" ? "POST_LIKE" : type === "comment" ? "POST_COMMENT" : "GENERAL";
+    
+    await NotificationService.createNotification({
+      userId: post.authorId,
+      actorId,
+      type: mappedType,
+      title: "Community Update",
+      message: text,
+      relatedPostId: postId,
+      actionUrl: `/community` // Fallback to community feed since there is no standalone post route
     });
   }
 
@@ -421,6 +434,8 @@ export class CommunityService {
         likesTotal: number;
         followersCount: number;
         followingCount: number;
+        collectionsCount: number;
+        favoritesCount: number;
         isFollowing: boolean;
       }>>`
         SELECT
@@ -435,6 +450,8 @@ export class CommunityService {
           ), 0)::int AS "likesTotal",
           (SELECT COUNT(*)::int FROM "CommunityFollow" WHERE "followingId" = ${userId}) AS "followersCount",
           (SELECT COUNT(*)::int FROM "CommunityFollow" WHERE "followerId" = ${userId}) AS "followingCount",
+          (SELECT COUNT(*)::int FROM "Collection" WHERE "userId" = ${userId}) AS "collectionsCount",
+          (SELECT COUNT(*)::int FROM "Favorite" WHERE "userId" = ${userId}) AS "favoritesCount",
           EXISTS(
             SELECT 1 FROM "CommunityFollow"
             WHERE "followerId" = ${viewerId}
@@ -461,6 +478,9 @@ export class CommunityService {
         coverImage: user.coverImage || "",
         role: "user" as const,
         followersCount: profileStats.followersCount,
+        followingCount: profileStats.followingCount,
+        collectionsCount: profileStats.collectionsCount,
+        favoritesCount: profileStats.favoritesCount,
         isFollowing: profileStats.isFollowing,
         recipesCount: profileStats.recipesTotal,
       },
@@ -538,6 +558,7 @@ export class CommunityService {
   }
 
   async createPost(user: AuthenticatedCommunityUser, input: CreateCommunityPostInput) {
+    await moderateCommunityPost(input);
     const createdPost = await prisma.$transaction(async (tx) => {
       let recipeId: string | undefined;
       if (input.recipe) {
@@ -735,10 +756,16 @@ export class CommunityService {
     const existing = await prisma.communityFollow.findUnique({ where });
     if (existing) await prisma.communityFollow.delete({ where });
     else await prisma.communityFollow.create({ data: { followerId, followingId } });
-    if (!existing)
-      await prisma.communityNotification.create({
-        data: { userId: followingId, actorId: followerId, type: "FOLLOW", text: "started following you" },
+    if (!existing) {
+      await NotificationService.createNotification({
+        userId: followingId,
+        actorId: followerId,
+        type: "FOLLOW",
+        title: "New Follower",
+        message: "started following you",
+        actionUrl: `/community/users/${followerId}`
       });
+    }
     return { active: !existing };
   }
 
@@ -887,7 +914,8 @@ export class CommunityService {
     });
   }
 
-  createStory(userId: string, imageUrl: string, caption: string, tag?: string) {
+  async createStory(userId: string, imageUrl: string, caption: string, tag?: string) {
+    await moderateCommunityStory(imageUrl, caption);
     return prisma.communityStory.create({
       data: { authorId: userId, imageUrl, caption, tag, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
     });

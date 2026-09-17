@@ -1,7 +1,10 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { generateRecipe, refineRecipe } from "../services/groqService";
-import { prisma } from "../lib/prisma"; // আপনার existing prisma client instance এর path ঠিক আছে কিনা চেক করুন
+import { prisma } from "../lib/prisma";
+import { auth } from "../lib/auth";
+import { fromNodeHeaders } from "better-auth/node";
+import { trackAiUsage } from "../services/ai-usage.service";
 
 const generateSchema = z.object({
   ingredients: z.array(z.string()).min(1),
@@ -38,6 +41,11 @@ export async function generate(req: Request, res: Response) {
         selectedOptions: input.selectedOptions,
       },
     });
+
+    try {
+      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      await trackAiUsage("RECIPES", session?.user?.id);
+    } catch (e) {}
 
     return res.status(200).json({
       id: saved.id,
@@ -102,6 +110,11 @@ export async function refine(req: Request, res: Response) {
         instructions: updated.instructions,
       },
     });
+
+    try {
+      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      await trackAiUsage("RECIPES", session?.user?.id);
+    } catch (e) {}
 
     return res.status(200).json({
       id: saved.id,

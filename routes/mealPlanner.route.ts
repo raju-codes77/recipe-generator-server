@@ -2,7 +2,9 @@ import { Router, Request, Response } from "express";
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { prisma } from "../src/lib/prisma.js";
 import { fromNodeHeaders } from "better-auth/node";
-import { auth } from "../src/lib/auth.js";import { groqClient, getGroqModel } from "../src/config/groq.js";
+import { auth } from "../src/lib/auth.js";
+import { groqClient, getGroqModel } from "../src/config/groq.js";
+import { NotificationService } from "../src/services/notification.service.js";
 
 const router = Router();
 
@@ -238,6 +240,16 @@ Respond strictly according to the required JSON schema.`;
     if (!text) throw new Error("Empty AI response");
 
     const parsed = JSON.parse(text);
+
+    // Trigger Notification
+    await NotificationService.createNotification({
+      userId,
+      type: "MEAL_PLAN_SUCCESS",
+      title: "Meal Plan Ready",
+      message: `Your ${days}-day personalized meal plan has been generated successfully!`,
+      actionUrl: "/meal-planner",
+    });
+
     return res.status(200).json(parsed);
   } catch (err: any) {
     console.error("[MEAL-PLANNER GENERATE]", err.message);
@@ -331,6 +343,16 @@ Respond strictly according to the required JSON schema.`;
     if (!text) throw new Error("Empty AI response");
 
     const parsed = JSON.parse(text);
+
+    // Trigger Notification
+    await NotificationService.createNotification({
+      userId,
+      type: "BUDGET_MEAL_PLAN_SUCCESS",
+      title: "Budget Meal Plan Ready",
+      message: `Your ${days}-day budget meal plan for ${city} has been generated successfully!`,
+      actionUrl: "/meal-planner",
+    });
+
     return res.status(200).json(parsed);
   } catch (err: any) {
     console.error("[MEAL-PLANNER BUDGET]", err.message);

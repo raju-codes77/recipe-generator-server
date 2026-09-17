@@ -37,6 +37,9 @@ model User {
   pantryItems           PantryItem[]
   mealProfile           MealProfile?
   shoppingLists         ShoppingList[]
+  wellnessPreference    WellnessPreference?
+  aiUsageEvents         AiUsageEvent[]
+  notifications         Notification[]
 }
 
 model ChatMessage {
@@ -625,3 +628,55 @@ model nutritionist {
 
   @@ignore
 }
+
+model WellnessPreference {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  enabled     Boolean  @default(true)
+  frequency   String   @default("1h") // Options: "30s", "30m", "1h", "2h"
+  categories  String[] @default(["general-wellness"])
+  lastShownAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiUsageEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  toolName  String   // e.g., "RECIPE_GENERATION", "NUTRITION_ANALYSIS", "TASTE_MATCH", "WELLNESS_REMINDER", "AI_CHALLENGE"
+  createdAt DateTime @default(now())
+  
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([toolName, createdAt])
+}
+
+model Notification {
+  id            String   @id @default(cuid())
+  userId        String   
+  actorId       String?  
+  type          String   
+  title         String
+  message       String
+  isRead        Boolean  @default(false)
+  actionUrl     String?  
+  relatedPostId String?
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@index([createdAt])
+}
+
+model CommunityStoryReaction {
+  id        String   @id @default(cuid())
+  storyId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([storyId, userId])
+  @@index([storyId])
+  @@index([userId])
+}
+

@@ -21,6 +21,8 @@ import { prisma } from "./src/lib/prisma.js";
 // ============================================
 
 import { analyzeMeal } from "./src/services/meal-analyze.service.js";
+import { trackAiUsage } from "./src/services/ai-usage.service.js";
+import { NotificationService } from "./src/services/notification.service.js";
 
 // ============================================
 // EXISTING ROUTES
@@ -35,16 +37,20 @@ import challengeRoutes from "./src/routes/challenge.routes.js";
 import shoppingListRoutes from "./src/shopping-list/shoppingList.routes.js";
 import adminUserRoutes from "./routes/admin-user.route.js";
 import aiChatRoutes from "./routes/ai-chat.routes.js";
+import recipeAiRoutes from "./src/routes/recipe-ai.routes.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
 import adminRoutes from "./routes/admin.route.js";
 
 // ============================================
 // ADMIN & AI ROUTES
 // ============================================
+import wellnessRouter from "./src/routes/wellness.routes.js";
+import { aiUsageRouter } from "./src/routes/ai-usage.routes.js";
+import aiNutritionistRoutes from "./routes/ai-nutritionist.routes.js";
+import notificationRoutes from "./src/routes/notification.routes.js";
 
 
-
-import { getNutritionist, getNutritionistById,createAppointment } from './routes/nutritionist.js'; // ফাইলের বানান যেমন আছে वैसेই দেওয়া হলো
+// old human nutritionist imports removed
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -102,6 +108,11 @@ app.use(express.json({ limit: "10mb" }));
 // ============================================
 
 app.use("/api/community", communityRoutes);
+app.use("/api/wellness-reminders", wellnessRouter);
+app.use("/api/ai-usage", aiUsageRouter);
+app.use("/api/ai-nutritionist", aiNutritionistRoutes);
+app.use("/api/notifications", notificationRoutes);
+
 
 // ============================================
 // MEAL ANALYSIS
@@ -109,18 +120,7 @@ app.use("/api/community", communityRoutes);
 
 
 //================================
-// nutrionist route
-//==================================
-app.get('/api/nutritionist', getNutritionist);
-
-app.get('/api/nutritionist/:id', getNutritionistById);
-
-app.post('/api/appointments', createAppointment);
-
-
-
-//================================
-// nutrionist route
+// nutrionist routes removed in favor of ai-nutritionist
 //==================================
 
 
@@ -164,6 +164,9 @@ app.post(
         return res.status(200).json(result);
       }
 
+      // Track AI Usage
+      await trackAiUsage("PHOTOS", userId);
+
       // 4. Save to DB if authenticated
       if (userId && result.calories !== undefined) {
         // Calculate macros
@@ -206,6 +209,15 @@ app.post(
 
         // Attach persisted ID
         result.mealId = savedMeal.id;
+
+        // Trigger Notification
+        await NotificationService.createNotification({
+          userId,
+          type: "MEAL_ANALYSIS_SUCCESS",
+          title: "Meal Analyzed",
+          message: "Your meal photo has been successfully analyzed.",
+          actionUrl: "/ai-tools/nutrition-analyzer",
+        });
       } else {
         console.log("[MEAL POST] SKIPPED DB insert - userId undefined or calories missing. userId:", userId, "calories:", result.calories);
       }
@@ -304,6 +316,7 @@ app.use("/api/admin", adminRoutes);
 // 15. AI Chat / Consultant Route
 // ─────────────────────────────────────────────────────────────────────────────
 app.use("/api", aiChatRoutes);
+app.use("/api/recipe-ai", recipeAiRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 16. Dashboard Analytics Routes
@@ -314,25 +327,26 @@ app.use("/api/dashboard", dashboardRoutes);
 // DATABASE TEST
 // ============================================
 
-app.get("/db-test", async (req, res) => {
-  try {
-    const users = await prisma.user.findMany();
+if (process.env.NODE_ENV !== "production") {
+  app.get("/db-test", async (req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
 
-    res.json({
-      success: true,
-      message: "Database connected successfully",
-      users,
-    });
+      res.json({
+        success: true,
+        message: "Database connected successfully",
+      });
 
-  } catch (error) {
-    console.error(error);
+    } catch (error) {
+      console.error(error);
 
-    res.status(500).json({
-      success: false,
-      message: "Database connection request failed",
-    });
-  }
-});
+      res.status(500).json({
+        success: false,
+        message: "Database connection request failed",
+      });
+    }
+  });
+}
 
 // ============================================
 // LOCAL SERVER
