@@ -126,7 +126,7 @@ export const ShoppingListService = {
   // =========================
   // Generate From Recipe (Smart Pantry-Aware)
   // =========================
-  async generateFromRecipe(userId: string, recipeId: string): Promise<ShoppingListResponseDTO> {
+  async generateFromRecipe(userId: string, recipeId: string, providedPantryIngredients?: string[]): Promise<ShoppingListResponseDTO> {
     const list = await this.getOrCreateShoppingList(userId);
 
     let recipeTitle = "";
@@ -189,6 +189,27 @@ export const ShoppingListService = {
 
       // Find matching pantry items
       const matchingPantry = userPantry.filter((p) => normalizeName(p.name) === normReqName);
+
+      // Add synthetic matches from providedPantryIngredients (frontend state)
+      if (providedPantryIngredients) {
+        const isProvided = providedPantryIngredients.some(p => normalizeName(p).includes(normReqName) || normReqName.includes(normalizeName(p)));
+        if (isProvided) {
+          // Fake a large quantity so it doesn't get added
+          matchingPantry.push({
+            id: "synthetic",
+            userId,
+            name: reqIng.name,
+            quantity: 9999,
+            unit: reqIng.unit,
+            category: reqIng.category,
+            purchaseDate: new Date(),
+            expiryDate: new Date(),
+            status: "ACTIVE",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+      }
 
       let availablePantryQty = 0;
       for (const pItem of matchingPantry) {

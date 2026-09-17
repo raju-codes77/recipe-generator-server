@@ -1,12 +1,9 @@
-import { GoogleGenAI } from "@google/genai";
 import Groq from "groq-sdk";
 import { getGroqModel } from "../config/groq.js";
+import { geminiClient, GEMINI_MODEL, withAIRetry } from "../config/ai.config.js";
 
 // Initialize clients (can be lazily initialized or undefined if keys are missing)
-const geminiApiKey = process.env.RECIPE_GEMINI_API_KEY;
 const groqApiKey = process.env.RECIPE_GROQ_API_KEY;
-
-const geminiClient = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
 const groqClient = groqApiKey ? new Groq({ apiKey: groqApiKey }) : null;
 
 export interface ChatMessage {
@@ -104,17 +101,23 @@ export async function generateRecipeChatResponse(
         parts: [{ text: msg.content }]
       }));
       
-      const response = await geminiClient.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: [
-          ...contents,
-          { role: "user", parts: [{ text: newMessage }] }
-        ],
-        config: {
-          systemInstruction: systemPrompt,
-          temperature: 0.7,
-        }
-      });
+      const response = await withAIRetry(
+        async () => {
+          return await geminiClient!.models.generateContent({
+            model: GEMINI_MODEL,
+            contents: [
+              ...contents,
+              { role: "user", parts: [{ text: newMessage }] }
+            ],
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.7,
+            }
+          });
+        },
+        "Gemini Recipe Chat",
+        3
+      );
       
       if (response.text) return response.text;
     } catch (error) {

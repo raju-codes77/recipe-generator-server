@@ -1,7 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
 import { groqClient, getGroqModel } from "../config/groq.js";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import { geminiClient, GEMINI_MODEL, withAIRetry } from "../config/ai.config.js";
 
 const SAFE_FALLBACK_TIPS = [
   "💧 Remember to stay hydrated and take a short break.",
@@ -35,11 +33,19 @@ Maximum 25 words.
   `.trim();
 
   try {
+    if (!geminiClient) throw new Error("Gemini AI is not configured.");
+    
     // 1. Try Gemini
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-    });
+    const response = await withAIRetry(
+      async () => {
+        return await geminiClient!.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: prompt,
+        });
+      },
+      "Gemini Wellness Reminder",
+      3
+    );
 
     if (response.text) {
       return response.text.trim().replace(/^["']|["']$/g, '');

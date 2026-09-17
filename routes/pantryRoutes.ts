@@ -1,6 +1,6 @@
 // src/routes/pantryRoutes.ts
 import { Router } from "express";
-import { generate, refine } from "../src/controllers/pantryController";
+import { generate, refine } from "../src/controllers/pantryController.js";
 
 const router = Router();
 

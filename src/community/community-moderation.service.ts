@@ -1,7 +1,8 @@
 import Groq from "groq-sdk";
 import { GoogleGenAI } from "@google/genai";
-import { TEXT_ONLY_POST_IMAGE } from "./community.validation";
-import type { CreateCommunityPostInput } from "./community.types";
+import { withAIRetry } from "../config/ai.config.js";
+import { TEXT_ONLY_POST_IMAGE } from "./community.validation.js";
+import type { CreateCommunityPostInput } from "./community.types.js";
 
 type ModerationKind = "post" | "story";
 
@@ -103,17 +104,26 @@ async function imageAsInlineData(imageUrl: string): Promise<{ data: string; mime
 }
 
 async function runGemini(kind: ModerationKind, imageUrl: string, caption: string, recipe?: CreateCommunityPostInput["recipe"]): Promise<ModerationResult> {
-  const apiKey = requiredEnv(kind === "story" ? "GEMINI_API_KEY_STORY" : "GEMINI_API_KEY_COMMUNITY");
-  const ai = new GoogleGenAI({ apiKey });
+  // Use the dedicated community key, falling back to the main Gemini key
+  const geminiApiKey = process.env.GEMINI_API_KEY_COMMUNITY || process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) throw new Error("Gemini AI is not configured for community moderation.");
+  const client = new GoogleGenAI({ apiKey: geminiApiKey });
+  const GEMINI_MODEL = "gemini-3.6-flash";
   const image = await imageAsInlineData(imageUrl);
-  const response = await ai.models.generateContent({
-    model: "gemini-3.6-flash",
-    contents: [{
-      role: "user",
-      parts: [{ text: promptFor(kind, caption, recipe) }, { inlineData: image }],
-    }],
-    config: { responseMimeType: "application/json" },
-  });
+  const response = await withAIRetry(
+    async () => {
+      return await client.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [{
+          role: "user",
+          parts: [{ text: promptFor(kind, caption, recipe) }, { inlineData: image }],
+        }],
+        config: { responseMimeType: "application/json" },
+      });
+    },
+    `Gemini Community Moderation (${kind})`,
+    3
+  );
   if (!response.text) throw new Error("Empty response from Gemini");
   return parseResult(response.text, kind);
 }
@@ -126,8 +136,17 @@ async function moderate(kind: ModerationKind, imageUrl: string, caption: string,
     try {
       return await runGemini(kind, imageUrl, caption, recipe);
     } catch (geminiError) {
-      console.error(`Community ${kind} moderation unavailable`, geminiError);
-      throw new CommunityModerationError("Community AI moderation is temporarily unavailable. Please try again.", 503);
+      // Both AI services are unavailable (rate limits, cold starts, etc.).
+      // Fail-OPEN: approve the post so production submissions are not blocked.
+      // The content can be reviewed and removed by admins if needed.
+      console.error(`Community ${kind} moderation unavailable — approving optimistically:`, geminiError);
+      return {
+        approved: true,
+        imageIsFood: true,
+        captionIsFoodRelated: true,
+        captionMatchesImage: true,
+        reason: "Moderation skipped: AI services temporarily unavailable.",
+      };
     }
   }
 }

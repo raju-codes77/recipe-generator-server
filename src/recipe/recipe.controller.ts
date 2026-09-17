@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { RecipeService } from "./recipe.service.js";
-import { requireCommunityUser } from "../community/community.auth.js";
+import { requireCommunityUser, getOptionalCommunityUser } from "../community/community.auth.js";
 
 export const RecipeController = {
   // Get Recipes
@@ -239,7 +239,11 @@ export const RecipeController = {
   // Check Favorite
   async checkFavorite(req: Request, res: Response) {
     try {
-      const user = await requireCommunityUser(req);
+      const user = await getOptionalCommunityUser(req);
+      if (!user) {
+        return res.status(200).json({ success: true, isFavorite: false });
+      }
+      
       const userId = user.id;
       const { recipeId } = req.query;
 
@@ -350,8 +354,14 @@ export const RecipeController = {
   // Get Collections
   async getCollections(req: Request, res: Response) {
     try {
-      const user = await requireCommunityUser(req);
-      const userId = user.id;
+      const { userId } = req.query;
+
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          message: "UserId is required",
+        });
+      }
 
       const collections = await RecipeService.getCollections(
         String(userId)

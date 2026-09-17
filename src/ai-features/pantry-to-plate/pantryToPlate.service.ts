@@ -1,6 +1,6 @@
 // import Groq from "groq-sdk";
-// import { prisma } from "../../lib/prisma"; // 👈 shared instance import — path tomar actual folder depth onujayi thik koro
-// import { GenerateRecipeRequestBody, Recipe } from "./pantryToPlate.types";
+// import { prisma } from "../../lib/prisma.js"; // 👈 shared instance import — path tomar actual folder depth onujayi thik koro
+// import { GenerateRecipeRequestBody, Recipe } from "./pantryToPlate.types.js";
 
 // const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
 

@@ -1,8 +1,6 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { Type, Schema } from "@google/genai";
 import { groqClient, getGroqModel } from "../config/groq.js";
-
-// Initialize the Google Gen AI SDK
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import { geminiClient, GEMINI_MODEL, withAIRetry } from "../config/ai.config.js";
 
 const challengeSchema: Schema = {
   type: Type.ARRAY,
@@ -53,14 +51,22 @@ export async function generateAIChallenges(personalizationContext?: string) {
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: challengeSchema,
-      }
-    });
+    if (!geminiClient) throw new Error("Gemini AI is not configured.");
+
+    const response = await withAIRetry(
+      async () => {
+        return await geminiClient!.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: challengeSchema,
+          }
+        });
+      },
+      "Gemini AI Challenge",
+      3
+    );
 
     if (!response.text) throw new Error("No response from AI");
     

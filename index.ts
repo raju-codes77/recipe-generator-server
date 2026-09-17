@@ -65,7 +65,9 @@ const configuredClientOrigins = [
 
 const allowedClientOrigins = Array.from(new Set([
   "http://localhost:3000",
+  "http://localhost:5000",
   "https://food-canvas.vercel.app",
+  "https://food-canvas-server.vercel.app", // server-side getServerSession() calls come from here
   ...configuredClientOrigins,
 ]));
 
@@ -79,14 +81,22 @@ const upload = multer({
 
 app.use(
   cors({
-    origin: allowedClientOrigins,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (same-origin, mobile apps, curl)
+      if (!origin) return callback(null, true);
+      if (allowedClientOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS: Origin '${origin}' not allowed`));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "Cookie",
+      "Origin",
+      "X-Requested-With",
     ],
+    exposedHeaders: ["Set-Cookie"],
   })
 );
 
@@ -102,6 +112,23 @@ app.all("/api/auth/*splat", toNodeHandler(auth));
 // ============================================
 
 app.use(express.json({ limit: "10mb" }));
+
+// ============================================
+// AUTH MIDDLEWARE
+// ============================================
+const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) }).catch(() => null);
+    if (!session?.user?.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized. Please log in." });
+    }
+    // Attach user id for downstream use
+    (req as any).user = session.user;
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, message: "Unauthorized." });
+  }
+};
 
 // ============================================
 // COMMUNITY
@@ -260,13 +287,13 @@ app.use("/api/users", userRoutes);
 // PANTRY-TO-PLATE ROUTES
 // ============================================
 
-app.use("/api/pantry-to-plate", pantryRoutes);
+app.use("/api/pantry-to-plate", requireAuth, pantryRoutes);
 
 // ============================================
 // INGREDIENT SUBSTITUTION ROUTES
 // ============================================
 
-app.use("/api/ingredient-substitution", ingredientSubstitutionRoutes);
+app.use("/api/ingredient-substitution", requireAuth, ingredientSubstitutionRoutes);
 
 // ============================================
 // MEAL PLANNER ROUTES
@@ -293,10 +320,11 @@ app.use("/api/meal-profile", mealProfileRoutes);
 app.use("/api/shopping-list", shoppingListRoutes);
 
 // ============================================
-// RECIPE MATCHER AI
+// RECIPE MATCHER AI & PANTRY
 // ============================================
 
-app.use("/api", recipeMatcherRoute);
+app.use("/api", requireAuth, recipeMatcherRoute);
+app.use("/api/pantry-to-plate", pantryRoutes);
 
 // ============================================
 // ADMIN USER CRUD ROUTES
@@ -315,38 +343,13 @@ app.use("/api/admin", adminRoutes);
 // ─────────────────────────────────────────────────────────────────────────────
 // 15. AI Chat / Consultant Route
 // ─────────────────────────────────────────────────────────────────────────────
-app.use("/api", aiChatRoutes);
-app.use("/api/recipe-ai", recipeAiRoutes);
+app.use("/api", requireAuth, aiChatRoutes);
+app.use("/api/recipe-ai", requireAuth, recipeAiRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 16. Dashboard Analytics Routes
 // ─────────────────────────────────────────────────────────────────────────────
 app.use("/api/dashboard", dashboardRoutes);
-
-// ============================================
-// DATABASE TEST
-// ============================================
-
-if (process.env.NODE_ENV !== "production") {
-  app.get("/db-test", async (req, res) => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-
-      res.json({
-        success: true,
-        message: "Database connected successfully",
-      });
-
-    } catch (error) {
-      console.error(error);
-
-      res.status(500).json({
-        success: false,
-        message: "Database connection request failed",
-      });
-    }
-  });
-}
 
 // ============================================
 // LOCAL SERVER
@@ -360,5 +363,18 @@ if (process.env.NODE_ENV !== "production") {
     console.log(`Server started on port ${PORT}`);
   });
 }
+
+// ============================================
+// GLOBAL ERROR HANDLER
+// ============================================
+
+app.use((req, res, next) => {
+  res.status(404).json({ error: "Not Found" });
+});
+
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Global Error:", err);
+  res.status(500).json({ error: "Internal Server Error", message: err.message });
+});
 
 export default app;

@@ -1,16 +1,13 @@
 import { Router, Request, Response } from "express";
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { Type, Schema } from "@google/genai";
 import { prisma } from "../src/lib/prisma.js";
 import { fromNodeHeaders } from "better-auth/node";
 import { auth } from "../src/lib/auth.js";
 import { groqClient, getGroqModel } from "../src/config/groq.js";
 import { NotificationService } from "../src/services/notification.service.js";
+import { geminiClient, GEMINI_MODEL, withAIRetry } from "../src/config/ai.config.js";
 
 const router = Router();
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY!,
-});
 
 async function getUserId(req: Request): Promise<string | null> {
   try {
@@ -19,12 +16,6 @@ async function getUserId(req: Request): Promise<string | null> {
   } catch (error) {
     // Ignore error and fall through to fallback
   }
-
-  const fallbackUserId = req.query?.userId || req.body?.userId;
-  if (fallbackUserId && typeof fallbackUserId === "string" && fallbackUserId !== "undefined") {
-    return fallbackUserId;
-  }
-
   return null;
 }
 
@@ -192,49 +183,44 @@ CRITICAL RULES:
 3. If specific meals (e.g. Snacks) are NOT requested in Meal Preferences, omit them from the meals object. Include only requested meal types.
 4. Scale all ingredient quantities and macro-nutrient estimates (calories, protein) accurately for exactly ${numPeople} people per meal.
 5. Provide realistic, appetizing meals with prep times and macros.
-6. EXACTLY return an array of ${days} days in the "days" field. Do not return more or fewer days. This is a strict requirement.
+6. EXACTLY return an array of ${days} day objects in the "days" field. Do not return ${days - 1} or ${days + 1}. You MUST generate exactly ${days} days.
 
 Respond strictly according to the required JSON schema.`;
 
     let text: string | undefined;
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: baseResponseSchema,
-          temperature: 0.6,
-        }
-      });
+      if (!geminiClient) throw new Error("Gemini AI is not configured");
+      const response = await withAIRetry(
+        async () => {
+          return await geminiClient!.models.generateContent({
+            model: GEMINI_MODEL,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: baseResponseSchema,
+              temperature: 0.6,
+              maxOutputTokens: 8192,
+            }
+          });
+        },
+        "Gemini Standard Meal Planner",
+        1
+      );
       text = response.text?.trim();
     } catch (geminiErr: any) {
-      const errStr = String(geminiErr).toLowerCase();
-      const isTemporary =
-        errStr.includes("503") ||
-        errStr.includes("unavailable") ||
-        errStr.includes("high demand") ||
-        errStr.includes("fetch failed") ||
-        errStr.includes("timeout") ||
-        errStr.includes("too many requests") ||
-        errStr.includes("429");
-
-      if (isTemporary) {
-        console.log("Gemini is busy, falling back to Groq for standard meal planner");
-        const groqPrompt = prompt + `\n\nRespond ONLY with a raw JSON object matching this exact schema: ${JSON.stringify(baseResponseSchema)}`;
-        const completion = await groqClient.chat.completions.create({
-          model: getGroqModel(),
-          messages: [
-            { role: "system", content: "You always respond with valid raw JSON only." },
-            { role: "user", content: groqPrompt },
-          ],
-          temperature: 0.6,
-          response_format: { type: "json_object" },
-        });
-        text = completion.choices[0]?.message?.content?.trim();
-      } else {
-        throw geminiErr;
-      }
+      console.log("Gemini is busy, falling back to Groq for standard meal planner");
+      const groqPrompt = prompt + `\n\nRespond ONLY with a raw JSON object matching this exact schema: ${JSON.stringify(baseResponseSchema)}`;
+      const completion = await groqClient.chat.completions.create({
+        model: getGroqModel(),
+        messages: [
+          { role: "system", content: "You always respond with valid raw JSON only." },
+          { role: "user", content: groqPrompt },
+        ],
+        temperature: 0.6,
+        max_tokens: 8192,
+        response_format: { type: "json_object" },
+      });
+      text = completion.choices[0]?.message?.content?.trim();
     }
 
     if (!text) throw new Error("Empty AI response");
@@ -295,49 +281,44 @@ CRITICAL RULES:
 3. ESTIMATE PRICES AND QUANTITIES ACCURATELY in ${currency} for ${numPeople} people. The ingredient amounts in the shopping list and macros must serve ${numPeople} people. Ensure the total estimated cost of all meals + ingredients stays close to but under the ${currency}${budget} budget. Include 'estimatedCost' for each meal and daily total.
 4. RECOMMEND 3 NEARBY GROCERY STORES/MARKETS in or near ${city}, ${country}. Provide estimated distances and price context.
 5. If Snacks are NOT in the Meal Preferences, do not include them.
-6. EXACTLY return an array of ${days} days in the "days" field. Do not return more or fewer days. This is a strict requirement.
+6. EXACTLY return an array of ${days} day objects in the "days" field. Do not return ${days - 1} or ${days + 1}. You MUST generate exactly ${days} days.
 
 Respond strictly according to the required JSON schema.`;
 
     let text: string | undefined;
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: budgetResponseSchema,
-          temperature: 0.6,
-        }
-      });
+      if (!geminiClient) throw new Error("Gemini AI is not configured");
+      const response = await withAIRetry(
+        async () => {
+          return await geminiClient!.models.generateContent({
+            model: GEMINI_MODEL,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: budgetResponseSchema,
+              temperature: 0.6,
+              maxOutputTokens: 8192,
+            }
+          });
+        },
+        "Gemini Budget Meal Planner",
+        1
+      );
       text = response.text?.trim();
     } catch (geminiErr: any) {
-      const errStr = String(geminiErr).toLowerCase();
-      const isTemporary =
-        errStr.includes("503") ||
-        errStr.includes("unavailable") ||
-        errStr.includes("high demand") ||
-        errStr.includes("fetch failed") ||
-        errStr.includes("timeout") ||
-        errStr.includes("too many requests") ||
-        errStr.includes("429");
-
-      if (isTemporary) {
-        console.log("Gemini is busy, falling back to Groq for budget meal planner");
-        const groqPrompt = prompt + `\n\nRespond ONLY with a raw JSON object matching this exact schema: ${JSON.stringify(budgetResponseSchema)}`;
-        const completion = await groqClient.chat.completions.create({
-          model: getGroqModel(),
-          messages: [
-            { role: "system", content: "You always respond with valid raw JSON only." },
-            { role: "user", content: groqPrompt },
-          ],
-          temperature: 0.6,
-          response_format: { type: "json_object" },
-        });
-        text = completion.choices[0]?.message?.content?.trim();
-      } else {
-        throw geminiErr;
-      }
+      console.log("Gemini is busy, falling back to Groq for budget meal planner");
+      const groqPrompt = prompt + `\n\nRespond ONLY with a raw JSON object matching this exact schema: ${JSON.stringify(budgetResponseSchema)}`;
+      const completion = await groqClient.chat.completions.create({
+        model: getGroqModel(),
+        messages: [
+          { role: "system", content: "You always respond with valid raw JSON only." },
+          { role: "user", content: groqPrompt },
+        ],
+        temperature: 0.6,
+        max_tokens: 8192,
+        response_format: { type: "json_object" },
+      });
+      text = completion.choices[0]?.message?.content?.trim();
     }
 
     if (!text) throw new Error("Empty AI response");
@@ -381,40 +362,64 @@ ${mealsText}
 
 Generate a complete shopping list. Combine duplicate ingredients.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            items: {
-              type: Type.ARRAY,
-              items: {
+    let text: string | undefined;
+
+    try {
+      if (!geminiClient) throw new Error("Gemini AI is not configured");
+      const response = await withAIRetry(
+        async () => {
+          return await geminiClient!.models.generateContent({
+            model: GEMINI_MODEL,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
                 type: Type.OBJECT,
                 properties: {
-                  name: { type: Type.STRING },
-                  quantity: { type: Type.STRING },
-                  category: { type: Type.STRING }
+                  items: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        name: { type: Type.STRING },
+                        quantity: { type: Type.STRING },
+                        category: { type: Type.STRING }
+                      },
+                      required: ["name", "quantity", "category"]
+                    }
+                  }
                 },
-                required: ["name", "quantity", "category"]
-              }
+                required: ["items"]
+              },
+              temperature: 0.4,
             }
-          },
-          required: ["items"]
+          });
         },
+        "Gemini Shopping List Gen",
+        1
+      );
+      text = response.text?.trim();
+    } catch (geminiErr: any) {
+      console.log("Gemini is busy, falling back to Groq for shopping list generation");
+      const groqPrompt = prompt + `\n\nRespond ONLY with a raw JSON object containing an "items" array where each item has "name", "quantity", and "category".`;
+      const completion = await groqClient.chat.completions.create({
+        model: getGroqModel(),
+        messages: [
+          { role: "system", content: "You always respond with valid raw JSON only." },
+          { role: "user", content: groqPrompt },
+        ],
         temperature: 0.4,
-      }
-    });
+        response_format: { type: "json_object" },
+      });
+      text = completion.choices[0]?.message?.content?.trim();
+    }
 
-    const text = response.text?.trim();
     if (!text) throw new Error("Empty AI response");
 
     const parsed = JSON.parse(text);
     return res.status(200).json(parsed);
   } catch (err: any) {
-    console.error("[SHOPPING-LIST]", err.message);
+    console.error("[SHOPPING-LIST GENERATE]", err.message);
     return res.status(500).json({ message: "Failed to generate shopping list", error: err.message });
   }
 });

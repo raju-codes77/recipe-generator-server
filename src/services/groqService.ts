@@ -1,5 +1,5 @@
-import { groqClient, getGroqModel } from "../config/groq";
-import { getRecipeImageUrl } from "../utils/image";
+import { groqClient, getGroqModel } from "../config/groq.js";
+import { getRecipeImageUrl } from "../utils/image.js";
 
 export interface GenerateInput {
   ingredients: string[];

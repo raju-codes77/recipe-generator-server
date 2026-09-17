@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { prisma } from "../lib/prisma";
-import { TEXT_ONLY_POST_IMAGE } from "./community.validation";
-import type { AuthenticatedCommunityUser, CreateCommunityPostInput } from "./community.types";
-import { moderateCommunityPost, moderateCommunityStory } from "./community-moderation.service";
-import { NotificationService, NotificationType } from "../services/notification.service";
+import { prisma } from "../lib/prisma.js";
+import { TEXT_ONLY_POST_IMAGE } from "./community.validation.js";
+import type { AuthenticatedCommunityUser, CreateCommunityPostInput } from "./community.types.js";
+import { moderateCommunityPost, moderateCommunityStory } from "./community-moderation.service.js";
+import { NotificationService, NotificationType } from "../services/notification.service.js";
 
 
 function timeAgo(value: Date): string {
