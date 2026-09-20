@@ -1,12 +1,19 @@
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
 import { generateAIChallenges } from "../services/ai-challenge.service.js";
+import { fromNodeHeaders } from "better-auth/node";
+import { auth } from "../lib/auth.js";
+
+async function getUserId(req: Request): Promise<string | null> {
+  const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) }).catch(() => null);
+  return session?.user?.id || null;
+}
 
 // GET /api/challenges
 export const getChallenges = async (req: Request, res: Response): Promise<any> => {
   try {
     const { status, mine, search, sort } = req.query;
-    const userId = (req as any).user?.id || req.query?.userId as string;
+    const userId = await getUserId(req);
 
     let whereClause: any = { isActive: true };
 
@@ -148,7 +155,7 @@ export const getChallengeById = async (req: Request, res: Response): Promise<any
 // POST /api/challenges/:id/join
 export const joinChallenge = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userId = String((req as any).user?.id); 
+    const userId = await getUserId(req); 
     if (!userId || userId === "undefined") return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const challengeId = String(req.params.id);
@@ -195,7 +202,7 @@ export const joinChallenge = async (req: Request, res: Response): Promise<any> =
 // GET /api/challenges/:challengeId/participant
 export const getChallengeParticipant = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userId = String((req as any).user?.id); 
+    const userId = await getUserId(req); 
     if (!userId || userId === "undefined") return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const challengeId = String(req.params.challengeId);
@@ -215,7 +222,7 @@ export const getChallengeParticipant = async (req: Request, res: Response): Prom
 // POST /api/challenges/:challengeId/days/:dayId/complete
 export const completeChallengeDay = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userId = String((req as any).user?.id); 
+    const userId = await getUserId(req); 
     if (!userId || userId === "undefined") return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const challengeId = String(req.params.challengeId);
@@ -293,7 +300,7 @@ export const completeChallengeDay = async (req: Request, res: Response): Promise
 // GET /api/challenges/user/progress
 export const getChallengeProgress = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userId = String((req as any).user?.id || req.query?.userId); 
+    const userId = await getUserId(req);
     if (!userId || userId === "undefined") return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const totalParticipated = await prisma.challengeParticipant.count({ where: { userId } });
@@ -331,7 +338,7 @@ export const getChallengeProgress = async (req: Request, res: Response): Promise
 // GET /api/challenges/user/badges
 export const getBadges = async (req: Request, res: Response): Promise<any> => {
   try {
-    const userId = String((req as any).user?.id || req.query?.userId); 
+    const userId = await getUserId(req);
     if (!userId || userId === "undefined") return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const badges = await prisma.userBadge.findMany({

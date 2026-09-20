@@ -38,8 +38,8 @@ function pickFromPoolByKeywords(text: string): string {
 router.get("/taste-profile", async (req: Request, res: Response) => {
   try {
     const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) }).catch(() => null);
-    const userId = session?.user?.id || req.query?.userId || req.body?.userId;
-    if (!userId || typeof userId !== "string" || userId === "undefined") {
+    const userId = session?.user?.id;
+    if (!userId || typeof userId !== "string") {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
@@ -58,8 +58,8 @@ router.get("/taste-profile", async (req: Request, res: Response) => {
 router.post("/match-recipes", async (req: Request, res: Response) => {
   try {
     const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) }).catch(() => null);
-    const userId = session?.user?.id || req.query?.userId || req.body?.userId;
-    if (!userId || typeof userId !== "string" || userId === "undefined") {
+    const userId = session?.user?.id;
+    if (!userId || typeof userId !== "string") {
       return res.status(401).json({ success: false, error: "Unauthorized. Please log in to match recipes." });
     }
     const { sweetness, sourness, saltiness, umami, spiciness, likedIngredients, dislikedIngredients, preferredCuisines } = req.body;

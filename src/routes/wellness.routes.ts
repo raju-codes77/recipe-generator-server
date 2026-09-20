@@ -96,10 +96,9 @@ router.get("/generate", requireAuth, async (req: any, res: any) => {
     if (preference.frequency === "30m") msRequired = 30 * 60 * 1000;
     if (preference.frequency === "2h") msRequired = 2 * 60 * 60 * 1000;
 
-    // Buffer of 2 minutes (or 5 seconds for 30s) to account for interval inaccuracies
     const buffer = preference.frequency === "30s" ? 5 * 1000 : 2 * 60 * 1000;
     if (now.getTime() - lastShown.getTime() < msRequired - buffer) {
-       return res.status(429).json({ error: "Reminder not due yet." });
+       return res.status(200).json({ tip: null, message: "Reminder not due yet." });
     }
 
     // Generate tip

@@ -1,12 +1,9 @@
 import { Router } from "express";
-import { GoogleGenAI } from "@google/genai";
 import { prisma } from "../src/lib/prisma.js";
+import { geminiClient, GEMINI_MODEL, withAIRetry } from "../src/config/ai.config.js";
+import { groqClient, getGroqModel } from "../src/config/groq.js";
 
 const router = Router();
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
 
 // ================= AI CHATBOT =================
 
@@ -45,49 +42,73 @@ Here is a map of the website pages for reference:
 Be helpful, warm, and concise in all your responses.
 `;
 
-    const primaryModel = process.env.GEMINI_CHAT_MODEL || "gemini-1.5-flash";
-    const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-1.5-pro";
-    const maxRetries = 3;
-    const delays = [1000, 2000, 4000];
-
     let reply = "I couldn't process that query.";
-    let success = false;
-    let attempt = 0;
-    
-    while (attempt <= maxRetries && !success) {
-      try {
-        const modelToUse = attempt === maxRetries ? fallbackModel : primaryModel;
-        
-        const response = await ai.models.generateContent({
-          model: modelToUse,
-          config: {
-            systemInstruction: siteMapContext,
-          },
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: userMessage.trim() }],
+
+    try {
+      if (!geminiClient && !groqClient) {
+        throw new Error("AI is not configured.");
+      }
+
+      if (geminiClient) {
+        try {
+          const response = await withAIRetry(
+            async () => {
+              return await geminiClient!.models.generateContent({
+                model: GEMINI_MODEL,
+                config: {
+                  systemInstruction: siteMapContext,
+                },
+                contents: [
+                  {
+                    role: "user",
+                    parts: [{ text: userMessage.trim() }],
+                  },
+                ],
+              });
             },
-          ],
-        });
-        
-        reply = response.text || reply;
-        success = true;
-      } catch (error: any) {
-        const isUnavailable = error?.status === 503 || error?.message?.includes("UNAVAILABLE") || error?.message?.includes("high demand");
-        
-        if (isUnavailable && attempt < maxRetries) {
-          console.warn(`[AI Chat] Attempt ${attempt + 1} failed with 503. Retrying in ${delays[attempt]}ms...`);
-          await new Promise(res => setTimeout(res, delays[attempt]));
-          attempt++;
-        } else {
-          console.error("[AI Chat] Final failure or non-retryable error:", { status: error?.status, message: error?.message });
-          return res.status(503).json({
-            success: false,
-            message: "The AI service is temporarily busy. Please try again in a moment.",
-          });
+            "Gemini AI Chat",
+            3
+          );
+          if (response.text) {
+            reply = response.text;
+          }
+        } catch (geminiError: any) {
+          console.warn("[AI Chat] Gemini failed, attempting fallback to Groq:", geminiError.message);
+          // Fall through to Groq
         }
       }
+
+      // If reply hasn't been set by Gemini and Groq is available
+      if (reply === "I couldn't process that query." && groqClient) {
+        try {
+          const completion = await groqClient.chat.completions.create({
+            messages: [
+              { role: "system", content: siteMapContext },
+              { role: "user", content: userMessage.trim() }
+            ],
+            model: getGroqModel(),
+            temperature: 0.7,
+          });
+          const groqReply = completion.choices[0]?.message?.content;
+          if (groqReply) {
+            reply = groqReply;
+          }
+        } catch (groqError: any) {
+          console.error("[AI Chat] Groq fallback failed:", groqError.message);
+          throw new Error("Both AI services failed.");
+        }
+      }
+      
+      if (reply === "I couldn't process that query.") {
+        throw new Error("Failed to generate a valid reply.");
+      }
+
+    } catch (error: any) {
+      console.error("[AI Chat] Final failure or non-retryable error:", { status: error?.status, message: error?.message });
+      return res.status(503).json({
+        success: false,
+        message: "The AI service is temporarily busy. Please try again in a moment.",
+      });
     }
 
     await prisma.chatMessage.create({

@@ -671,14 +671,4 @@ model Notification {
   @@index([createdAt])
 }
 
-model CommunityStoryReaction {
-  id        String   @id @default(cuid())
-  storyId   String
-  userId    String
-  createdAt DateTime @default(now())
-
-  @@unique([storyId, userId])
-  @@index([storyId])
-  @@index([userId])
-}
 

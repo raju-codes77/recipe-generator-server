@@ -4,9 +4,15 @@ import { fromNodeHeaders } from "better-auth/node";
 import { ShoppingListService } from "./shoppingList.service.js";
 async function getAuthUserId(req: Request): Promise<string | null> {
   try {
+    const hasCookie = Boolean(req.headers.cookie);
     const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-    return session?.user?.id ?? null;
-  } catch {
+    const userId = session?.user?.id ?? null;
+    if (!userId) {
+      console.log(`[ShoppingList Auth] Session not resolved. Cookie present: ${hasCookie}, path: ${req.path}`);
+    }
+    return userId;
+  } catch (err: any) {
+    console.error("[ShoppingList Auth] Error resolving session:", err?.message || err);
     return null;
   }
 }
@@ -63,12 +69,12 @@ export const ShoppingListController = {
         return res.status(401).json({ message: "Authentication required" });
       }
 
-      const { recipeId } = req.body;
+      const { recipeId, userPantryIngredients } = req.body;
       if (!recipeId || typeof recipeId !== "string" || !recipeId.trim()) {
         return res.status(400).json({ message: "Recipe ID is required" });
       }
 
-      const result = await ShoppingListService.generateFromRecipe(userId, recipeId.trim());
+      const result = await ShoppingListService.generateFromRecipe(userId, recipeId.trim(), userPantryIngredients);
       return res.status(200).json(result);
     } catch (error: any) {
       console.error("[ShoppingList] Generate From Recipe Error:", error);

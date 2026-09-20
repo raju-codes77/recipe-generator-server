@@ -1,11 +1,11 @@
 import { Request, Response } from "express";
 import { z } from "zod";
-import { generateRecipe, refineRecipe } from "../services/groqService";
-import { prisma } from "../lib/prisma";
-import { auth } from "../lib/auth";
+import { generateRecipe, refineRecipe } from "../services/groqService.js";
+import { prisma } from "../lib/prisma.js";
+import { auth } from "../lib/auth.js";
 import { fromNodeHeaders } from "better-auth/node";
-import { trackAiUsage } from "../services/ai-usage.service";
-import { requireCommunityUser } from "../community/community.auth";
+import { trackAiUsage } from "../services/ai-usage.service.js";
+import { requireCommunityUser } from "../community/community.auth.js";
 
 const generateSchema = z.object({
   ingredients: z.array(z.string()).min(1),
@@ -23,6 +23,12 @@ export async function generate(req: Request, res: Response) {
   try {
     const input = generateSchema.parse(req.body);
     const recipe = await generateRecipe(input);
+
+    let userId: string | undefined;
+    try {
+      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      userId = session?.user?.id;
+    } catch (e) {}
 
     const saved = await prisma.pantryRecipe.create({
       data: {
@@ -42,13 +48,13 @@ export async function generate(req: Request, res: Response) {
         diet: input.diet,
         servings: input.servings,
         selectedOptions: input.selectedOptions,
+        userId: userId,
       },
     });
 
-    try {
-      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-      await trackAiUsage("RECIPES", session?.user?.id);
-    } catch (e) {}
+    if (userId) {
+      await trackAiUsage("RECIPES", userId);
+    }
 
     return res.status(200).json({
       id: saved.id,
