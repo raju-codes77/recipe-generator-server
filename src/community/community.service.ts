@@ -21,6 +21,18 @@ async function usersById(ids: string[]) {
   return new Map(users.map((user) => [user.id, user]));
 }
 
+interface CommunityCommentView {
+  id: string;
+  userId: string;
+  parentId: string | null;
+  userName: string;
+  userAvatar: string;
+  content: string;
+  createdAt: string;
+  likesCount: number;
+  replies: CommunityCommentView[];
+}
+
 function parseRecipeSteps(instructions: string | null): Array<{ stepNumber: number; instruction: string; durationMinutes?: number; tip?: string }> {
   if (!instructions) return [];
   try {
@@ -70,6 +82,8 @@ export class CommunityService {
       authorId?: string;
       postIds?: string[];
       excludePinned?: boolean;
+      pinnedOnly?: boolean;
+      orderPinnedFirst?: boolean;
       take?: number;
       skip?: number;
       filter?: "all" | "trending" | "following" | "quick" | "wellness" | "ai_sparks" | "saved" | "liked";
@@ -151,9 +165,12 @@ export class CommunityService {
         ...(options.authorId ? { authorId: options.authorId } : {}),
         ...(options.postIds ? { id: { in: options.postIds } } : {}),
         ...(options.excludePinned ? { isPinned: false } : {}),
+        ...(options.pinnedOnly ? { isPinned: true } : {}),
         ...(filteredPostIds ? { id: { in: filteredPostIds } } : {}),
       },
-      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+      orderBy: options.orderPinnedFirst === false
+        ? { createdAt: "desc" }
+        : [{ isPinned: "desc" }, { createdAt: "desc" }],
       take: filterOrder ? filteredPostIds?.length : take,
       skip: filterOrder ? 0 : skip,
     });
@@ -425,8 +442,9 @@ export class CommunityService {
 
     const take = Math.min(Math.max(options.take ?? 6, 1), 20);
     const skip = Math.max(options.skip ?? 0, 0);
-    const [pagePosts, stories, profileStatsRows] = await Promise.all([
-      this.listPosts(viewerId, { authorId: userId, take: take + 1, skip }),
+    const [pagePosts, pinnedPosts, stories, profileStatsRows] = await Promise.all([
+      this.listPosts(viewerId, { authorId: userId, take: take + 1, skip, orderPinnedFirst: false }),
+      this.listPosts(viewerId, { authorId: userId, pinnedOnly: true, take: 1, skip: 0 }),
       this.listStories(userId, viewerId),
       prisma.$queryRaw<Array<{
         postsTotal: number;
@@ -485,6 +503,7 @@ export class CommunityService {
         recipesCount: profileStats.recipesTotal,
       },
       posts,
+      pinnedPost: pinnedPosts[0] ?? null,
       postsTotal: profileStats.postsTotal,
       likesTotal: viewerId === userId ? profileStats.likesTotal : undefined,
       hasMorePosts,
@@ -509,8 +528,6 @@ export class CommunityService {
       ? await prisma.communityComment.findMany({
           where: { postId },
           orderBy: { createdAt: "asc" },
-          take: commentsTake,
-          skip: commentsSkip,
         })
       : [];
     const reviews = reviewsTake
@@ -523,19 +540,32 @@ export class CommunityService {
       : [];
     const users = await usersById([...comments.map((comment) => comment.userId), ...reviews.map((review) => review.userId)]);
 
+    const commentsByParent = new Map<string | null, typeof comments>();
+    comments.forEach((comment) => {
+      const siblings = commentsByParent.get(comment.parentId) || [];
+      siblings.push(comment);
+      commentsByParent.set(comment.parentId, siblings);
+    });
+
+    const formatComment = (comment: (typeof comments)[number]): CommunityCommentView => {
+      const user = users.get(comment.userId);
+      return {
+        id: comment.id,
+        userId: comment.userId,
+        parentId: comment.parentId,
+        userName: user?.name || "Community Cook",
+        userAvatar: user?.image || "",
+        content: comment.content,
+        createdAt: timeAgo(comment.createdAt),
+        likesCount: 0,
+        replies: (commentsByParent.get(comment.id) || []).map(formatComment),
+      };
+    };
+
+    const visibleRootComments = (commentsByParent.get(null) || []).slice(commentsSkip, commentsSkip + commentsTake);
+
     return {
-      comments: comments.map((comment) => {
-        const user = users.get(comment.userId);
-        return {
-          id: comment.id,
-          userId: comment.userId,
-          userName: user?.name || "Community Cook",
-          userAvatar: user?.image || "",
-          content: comment.content,
-          createdAt: timeAgo(comment.createdAt),
-          likesCount: 0,
-        };
-      }),
+      comments: visibleRootComments.map(formatComment),
       reviews: reviews.map((review) => {
         const user = users.get(review.userId);
         return {
@@ -719,6 +749,15 @@ export class CommunityService {
   }
 
   async addComment(userId: string, postId: string, content: string, parentId?: string) {
+    if (parentId) {
+      const parent = await prisma.communityComment.findUnique({
+        where: { id: parentId },
+        select: { postId: true },
+      });
+      if (!parent || parent.postId !== postId) {
+        throw Object.assign(new Error("Parent comment not found"), { statusCode: 404 });
+      }
+    }
     const comment = await prisma.communityComment.create({ data: { userId, postId, content, parentId } });
     await this.notifyPostOwner(postId, userId, "COMMENT", "commented on your Community post");
     return comment;
@@ -733,7 +772,25 @@ export class CommunityService {
   async deleteComment(userId: string, commentId: string) {
     const comment = await prisma.communityComment.findUnique({ where: { id: commentId } });
     if (!comment || comment.userId !== userId) throw Object.assign(new Error("Comment not found"), { statusCode: 404 });
-    await prisma.communityComment.delete({ where: { id: commentId } });
+
+    const thread = await prisma.communityComment.findMany({
+      where: { postId: comment.postId },
+      select: { id: true, parentId: true },
+    });
+    const idsToDelete = new Set([commentId]);
+    let foundNewChild = true;
+    while (foundNewChild) {
+      foundNewChild = false;
+      thread.forEach((item) => {
+        if (item.parentId && idsToDelete.has(item.parentId) && !idsToDelete.has(item.id)) {
+          idsToDelete.add(item.id);
+          foundNewChild = true;
+        }
+      });
+    }
+
+    await prisma.communityComment.deleteMany({ where: { id: { in: [...idsToDelete] } } });
+    return { deletedCount: idsToDelete.size };
   }
 
   async saveReview(userId: string, postId: string, data: Record<string, unknown>) {
@@ -922,9 +979,13 @@ export class CommunityService {
 
   async createStory(userId: string, imageUrl: string, caption: string, tag?: string) {
     await moderateCommunityStory(imageUrl, caption);
-    return prisma.communityStory.create({
+    const createdStory = await prisma.communityStory.create({
       data: { authorId: userId, imageUrl, caption, tag, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
     });
+
+    const formattedStory = (await this.listStories(userId)).find((story) => story.id === createdStory.id);
+    if (!formattedStory) throw new Error("Unable to format the created story");
+    return formattedStory;
   }
 
   async deleteStory(userId: string, storyId: string) {
@@ -1163,11 +1224,16 @@ export class CommunityService {
           online: false,
           lastMessage: latest?.text || "Start a cooking conversation",
           lastMessageTime: latest ? timeAgo(latest.createdAt) : "",
+          lastMessageAt: latest?.createdAt.toISOString() || null,
           unreadCount,
         };
       }));
     return contactRows.sort((left, right) => {
-      if (right.unreadCount !== left.unreadCount) return (right.unreadCount ?? 0) - (left.unreadCount ?? 0);
+      if (left.lastMessageAt && right.lastMessageAt) {
+        return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime();
+      }
+      if (right.lastMessageAt) return 1;
+      if (left.lastMessageAt) return -1;
       return left.name.localeCompare(right.name);
     });
   }
@@ -1252,14 +1318,14 @@ export class CommunityService {
     const message = await prisma.communityMessage.create({
       data: { conversationId: conversation.id, senderId: userId, recipientId, text: normalizedText, attachedPostId, attachedStoryId },
     });
-    await prisma.communityNotification.create({
-      data: {
-        userId: recipientId,
-        actorId: userId,
-        type: "MESSAGE",
-        text: "sent you a direct message",
-        targetPostId: attachedPostId,
-      },
+    await NotificationService.createNotification({
+      userId: recipientId,
+      actorId: userId,
+      type: "MESSAGE",
+      title: "New message",
+      message: "sent you a direct message",
+      actionUrl: `/community/messages?userId=${encodeURIComponent(userId)}`,
+      relatedPostId: attachedPostId,
     });
     return message;
   }

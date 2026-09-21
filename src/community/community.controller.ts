@@ -139,9 +139,9 @@ export const communityController = {
 
   deleteComment: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
-    await communityService.deleteComment(user.id, param(req.params.commentId));
+    const result = await communityService.deleteComment(user.id, param(req.params.commentId));
 
-    res.status(204).end();
+    res.json(result);
   }),
 
   saveReview: handle(async (req, res) => {
