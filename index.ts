@@ -154,108 +154,135 @@ app.post(
   upload.single("image"),
   async (req, res) => {
     try {
+      console.log("[MEAL AI DIAGNOSTIC] POST /api/meals/analyze started");
+      
+      // 1. Validate Image
+      console.log("[MEAL AI DIAGNOSTIC] Received file:", !!req.file);
       if (!req.file) {
-        return res.status(400).json({
+        console.warn("[MEAL AI DIAGNOSTIC] No file uploaded");
+        return res.status(422).json({
           success: false,
           message: "Meal image is required",
         });
       }
+      console.log(`[MEAL AI DIAGNOSTIC] File MIME type: ${req.file.mimetype}, size: ${req.file.size} bytes`);
 
-      // 1. Authenticate user
+      // 2. Authenticate user
       let userId: string | undefined;
+      console.log("[MEAL AI DIAGNOSTIC] Authenticating...");
       try {
         const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
         if (session?.user?.id) userId = session.user.id;
-      } catch (error) {}
-
-      if (!userId && req.body.userId) {
-        userId = req.body.userId;
+      } catch (error) {
+        console.warn("[MEAL AI DIAGNOSTIC] Auth session retrieval failed:", error);
       }
 
-      // [MEAL POST] Diagnostic log
-      console.log("[MEAL POST] userId:", userId ?? "UNDEFINED - session cookie may be missing!");
+      console.log("[MEAL AI DIAGNOSTIC] Authenticated:", !!userId);
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized - Please log in to analyze meals",
+        });
+      }
 
-      // 2. Get localDate from body
+      // 3. Get localDate
       const localDate = req.body.localDate || new Date().toISOString().split("T")[0];
 
-      // 3. Analyze Meal
+      // 4. Analyze Meal
+      console.log("[MEAL AI DIAGNOSTIC] Calling analyzeMeal service...");
       const result = await analyzeMeal({
         buffer: req.file.buffer,
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
       });
+      console.log("[MEAL AI DIAGNOSTIC] analyzeMeal completed successfully");
 
       if (!result.success || !result.isFood) {
+        console.log("[MEAL AI DIAGNOSTIC] Not food or unsuccessful extraction");
         return res.status(200).json(result);
       }
 
-      // Track AI Usage
+      // 5. Track AI Usage
       await trackAiUsage("PHOTOS", userId);
 
-      // 4. Save to DB if authenticated
-      if (userId && result.calories !== undefined) {
-        // Calculate macros
+      // 6. Save to DB
+      if (result.calories !== undefined) {
+        console.log("[MEAL AI DIAGNOSTIC] Prisma save started");
+        
         const protein = result.macros?.find((m: any) => m.label.toLowerCase() === "protein")?.grams || 0;
         const carbs = result.macros?.find((m: any) => m.label.toLowerCase() === "carbs")?.grams || 0;
         const fat = result.macros?.find((m: any) => m.label.toLowerCase() === "fat")?.grams || 0;
 
-        console.log("[MEAL POST] Saving MealLog:", { userId, name: result.foodName, calories: result.calories, date: localDate });
-
-        // Save MealLog
-        const savedMeal = await prisma.mealLog.create({
-          data: {
+        try {
+          const savedMeal = await prisma.mealLog.create({
+            data: {
+              userId,
+              name: result.foodName || "Analyzed Meal",
+              calories: result.calories,
+              protein,
+              carbs,
+              fat,
+              imageUrl: result.imageUrl,
+              date: localDate,
+            },
+          });
+          
+          await prisma.dailyEntry.upsert({
+            where: { userId_date: { userId, date: localDate } },
+            update: {
+              kcal: { increment: result.calories },
+              protein: { increment: protein },
+            },
+            create: {
+              userId,
+              date: localDate,
+              kcal: result.calories,
+              protein,
+            },
+          });
+          
+          result.mealId = savedMeal.id;
+          console.log("[MEAL AI DIAGNOSTIC] Prisma save succeeded, ID:", savedMeal.id);
+          
+          await NotificationService.createNotification({
             userId,
-            name: result.foodName || "Analyzed Meal",
-            calories: result.calories,
-            protein,
-            carbs,
-            fat,
-            imageUrl: result.imageUrl,
-            date: localDate,
-          },
-        });
-
-        console.log("[MEAL POST] Saved MealLog id:", savedMeal.id);
-
-        // Update DailyEntry
-        await prisma.dailyEntry.upsert({
-          where: { userId_date: { userId, date: localDate } },
-          update: {
-            kcal: { increment: result.calories },
-            protein: { increment: protein },
-          },
-          create: {
-            userId,
-            date: localDate,
-            kcal: result.calories,
-            protein,
-          },
-        });
-
-        // Attach persisted ID
-        result.mealId = savedMeal.id;
-
-        // Trigger Notification
-        await NotificationService.createNotification({
-          userId,
-          type: "MEAL_ANALYSIS_SUCCESS",
-          title: "Meal Analyzed",
-          message: "Your meal photo has been successfully analyzed.",
-          actionUrl: "/ai-tools/nutrition-analyzer",
-        });
-      } else {
-        console.log("[MEAL POST] SKIPPED DB insert - userId undefined or calories missing. userId:", userId, "calories:", result.calories);
+            type: "MEAL_ANALYSIS_SUCCESS",
+            title: "Meal Analyzed",
+            message: "Your meal photo has been successfully analyzed.",
+            actionUrl: "/ai-tools/nutrition-analyzer",
+          });
+        } catch (dbError: any) {
+          console.error("[MEAL AI DIAGNOSTIC] Prisma save failed:", dbError.message || dbError);
+          // Return 500 for DB failure, but don't mask it as an AI failure
+          return res.status(500).json({
+            success: false,
+            message: "Meal was analyzed but failed to save to database",
+            error: "DATABASE_ERROR"
+          });
+        }
       }
 
+      console.log("[MEAL AI DIAGNOSTIC] Request fully processed, returning 200");
       return res.status(200).json(result);
 
     } catch (error: any) {
-      console.error("Meal Analysis Error:", error);
+      console.error("[MEAL AI DIAGNOSTIC] Unhandled Exception:", error);
+      
+      const errMsg = error.message || String(error);
+      let statusCode = error.status || 500;
+      
+      if (errMsg.includes("temporarily unavailable") || errMsg.includes("503")) {
+        statusCode = 503;
+      } else if (errMsg.includes("rate limit") || errMsg.includes("429")) {
+        statusCode = 429;
+      } else if (errMsg.includes("configured") || errMsg.includes("empty response")) {
+        statusCode = 502; // Bad Gateway / config error
+      }
 
-      return res.status(500).json({
+      return res.status(statusCode).json({
         success: false,
-        message: "Failed to analyze meal image",
-        error: error.message,
+        message: statusCode === 503 ? "Meal analysis is temporarily unavailable. Please try again in a moment." : "Failed to analyze meal image",
+        error: errMsg,
       });
     }
   }

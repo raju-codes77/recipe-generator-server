@@ -11,12 +11,14 @@ if (!apiKey) {
 export const geminiClient = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 // 2. Centralized Model Identifier
-// We use gemini-3.6-flash as the standard, production-ready multimodal model.
+// gemini-3.6-flash is the standard production-ready multimodal model.
 export const GEMINI_MODEL = "gemini-3.6-flash";
 
-// Specific meal models as requested
+// Specific meal models
 export const GEMINI_MEAL_MODEL = process.env.GEMINI_MEAL_MODEL || "gemini-3.6-flash";
-export const GROQ_MEAL_MODEL = process.env.GROQ_MEAL_MODEL || "qwen/qwen3.6-27b";
+export const GEMINI_MEAL_MODEL_FALLBACK = process.env.GEMINI_MEAL_MODEL_FALLBACK || "gemini-2.5-flash";
+// qwen/qwen3.8-27b is the only currently-active Groq model that accepts image inputs
+export const GROQ_MEAL_MODEL = process.env.GROQ_MEAL_MODEL || "qwen/qwen3.8-27b";
 
 // 3. Retry Wrapper
 export async function withAIRetry<T>(

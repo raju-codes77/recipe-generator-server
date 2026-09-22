@@ -1,6 +1,6 @@
 
 // Import centralized Gemini configuration
-import { geminiClient, GEMINI_MEAL_MODEL, GROQ_MEAL_MODEL, withAIRetry, extractCleanJson } from "../config/ai.config.js";
+import { geminiClient, GEMINI_MEAL_MODEL, GEMINI_MEAL_MODEL_FALLBACK, GROQ_MEAL_MODEL, withAIRetry, extractCleanJson } from "../config/ai.config.js";
 import { groqClient } from "../config/groq.js";
 
 // Import Supabase image upload function
@@ -105,15 +105,23 @@ Rules:
           model: GEMINI_MEAL_MODEL,
           contents: [
             {
-              inlineData: {
-                mimeType,
-                data: base64Image,
-              },
-            },
-            {
-              text: prompt,
-            },
+              role: "user",
+              parts: [
+                {
+                  inlineData: {
+                    mimeType,
+                    data: base64Image,
+                  },
+                },
+                {
+                  text: prompt,
+                },
+              ]
+            }
           ],
+          config: {
+            responseMimeType: "application/json"
+          }
         });
       },
       "Gemini Meal Analysis",
@@ -126,47 +134,97 @@ Rules:
       throw new Error("Gemini returned an empty response.");
     }
   } catch (geminiError: any) {
-    console.warn(`[Meal AI] Gemini attempt failed:`, geminiError.message || geminiError);
-    
-    // Phase 2: Groq Fallback
-    if (!process.env.GROQ_API_KEY && !process.env.GROQ_API_KEY_PLATE_AI) {
-      console.error("[Meal AI] No fallback provider configured (GROQ_API_KEY is missing).");
-      throw new Error("Meal analysis is temporarily unavailable. Please try again in a moment.");
+    console.warn(`[Meal AI] Gemini (${GEMINI_MEAL_MODEL}) failed:`, geminiError.message || geminiError);
+    const isGeminiRateLimit = String(geminiError).includes("429") || String(geminiError.message).includes("429") || String(geminiError.message).includes("quota") || String(geminiError.message).includes("rate");
+
+    // Phase 2: Secondary Gemini fallback (gemini-2.5-flash)
+    if (isGeminiRateLimit && geminiClient) {
+      try {
+        console.log(`[Meal AI] Falling back to secondary Gemini model: ${GEMINI_MEAL_MODEL_FALLBACK}...`);
+        const fallbackResponse = await withAIRetry(
+          async () => {
+            return await geminiClient!.models.generateContent({
+              model: GEMINI_MEAL_MODEL_FALLBACK,
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    { inlineData: { mimeType, data: base64Image } },
+                    { text: prompt }
+                  ]
+                }
+              ],
+              config: { responseMimeType: "application/json" }
+            });
+          },
+          "Gemini Fallback Meal Analysis",
+          2
+        );
+        const fallbackText = fallbackResponse.text?.trim() || "";
+        if (fallbackText) {
+          console.log(`[Meal AI] Secondary Gemini model succeeded`);
+          rawText = fallbackText;
+        }
+      } catch (gemini2Error: any) {
+        console.warn(`[Meal AI] Secondary Gemini (${GEMINI_MEAL_MODEL_FALLBACK}) also failed:`, gemini2Error.message || gemini2Error);
+        // Fall through to Groq
+      }
     }
 
-    console.log(`[Meal AI] Falling back to Groq...`);
-    
-    try {
-      const groqResponse = await withAIRetry(
-        async () => {
-          return await groqClient.chat.completions.create({
-            model: GROQ_MEAL_MODEL,
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: prompt },
-                  { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
-                ]
-              }
-            ],
-            response_format: { type: "json_object" }
-          });
-        },
-        "Groq Meal Analysis",
-        2
-      );
-
-      rawText = groqResponse.choices[0]?.message?.content?.trim() || "";
-      
-      if (!rawText) {
-        throw new Error("Groq returned an empty response.");
+    // Phase 3: Groq Fallback (if rawText still empty after secondary Gemini)
+    if (!rawText) {
+      if (!process.env.GROQ_API_KEY && !process.env.GROQ_API_KEY_PLATE_AI) {
+        console.error("[Meal AI] No fallback provider configured (GROQ_API_KEY is missing).");
+        const err = new Error(isGeminiRateLimit ? "AI providers rate limit exceeded. Please try again later." : "Meal analysis is temporarily unavailable. Please try again in a moment.");
+        (err as any).status = isGeminiRateLimit ? 429 : 503;
+        throw err;
       }
+
+      console.log(`[Meal AI] Falling back to Groq (${GROQ_MEAL_MODEL})...`);
       
-      console.log(`[Meal AI] Groq fallback succeeded`);
-    } catch (groqError: any) {
-      console.error(`[Meal AI] Groq fallback failed:`, groqError.message || groqError);
-      throw new Error("Meal analysis is temporarily unavailable. Please try again in a moment.");
+      try {
+        const groqResponse = await withAIRetry(
+          async () => {
+            return await groqClient.chat.completions.create({
+              model: GROQ_MEAL_MODEL,
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: prompt },
+                    { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+                  ]
+                }
+              ],
+              response_format: { type: "json_object" }
+            });
+          },
+          "Groq Meal Analysis",
+          2
+        );
+
+        rawText = groqResponse.choices[0]?.message?.content?.trim() || "";
+        
+        if (!rawText) {
+          throw new Error("Groq returned an empty response.");
+        }
+        
+        console.log(`[Meal AI] Groq fallback succeeded`);
+      } catch (groqError: any) {
+        console.error(`[Meal AI] Groq fallback failed:`, groqError.message || groqError);
+        
+        const isGroqRateLimit = String(groqError).includes("429") || String(groqError.message).includes("429") || String(groqError.message).includes("quota");
+        
+        if (isGeminiRateLimit && isGroqRateLimit) {
+          const err = new Error("AI providers rate limit exceeded. Please try again later.");
+          (err as any).status = 429;
+          throw err;
+        }
+        
+        const err = new Error(`Meal analysis failed. Groq error: ${groqError.message || groqError}`);
+        (err as any).status = 503;
+        throw err;
+      }
     }
   }
 

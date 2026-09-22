@@ -1,3 +1,4 @@
+
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma.js";
@@ -12,17 +13,37 @@ const configuredClientOrigins = [
   .filter(Boolean);
 
 export const auth = betterAuth({
+  // Production: https://food-canvas-server.vercel.app
+  // Local: http://localhost:5000
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:5000",
-  trustedOrigins: configuredClientOrigins.length ? configuredClientOrigins : ["http://localhost:3000", "http://localhost:5000"],
+
+  trustedOrigins: Array.from(
+    new Set([
+      "http://localhost:3000",
+      "http://localhost:5000",
+      "https://food-canvas.vercel.app",
+      "https://food-canvas-server.vercel.app",
+      ...configuredClientOrigins,
+    ])
+  ),
+
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
 
+  trustHost: true,
+
   advanced: {
     defaultCookieAttributes: {
-      sameSite: "none",
-      secure: true,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV === "production",
     },
+  },
+
+  // OAuth state is stored in the database.
+  // This is appropriate because Prisma/PostgreSQL is configured.
+  account: {
+    storeStateStrategy: "database",
   },
 
   emailAndPassword: {
@@ -31,9 +52,8 @@ export const auth = betterAuth({
 
   socialProviders: {
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-      redirectURI: `${process.env.BETTER_AUTH_URL || "https://food-canvas-server.vercel.app"}/api/auth/callback/google`,
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     },
   },
 
@@ -47,3 +67,4 @@ export const auth = betterAuth({
     },
   },
 });
+
