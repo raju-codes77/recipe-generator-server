@@ -12,16 +12,8 @@ const configuredClientOrigins = [
   .filter(Boolean);
 
 export const auth = betterAuth({
-  baseURL: process.env.BETTER_AUTH_URL || "https://food-canvas-server.vercel.app",
-
-  trustedOrigins: [
-    "http://localhost:3000",
-    "http://localhost:5000",
-    "https://food-canvas.vercel.app",
-    "https://food-canvas-server.vercel.app",
-    ...configuredClientOrigins,
-  ],
-
+  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:5000",
+  trustedOrigins: configuredClientOrigins.length ? configuredClientOrigins : ["http://localhost:3000", "http://localhost:5000"],
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -41,7 +33,7 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-      redirectURI: `${process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_APP_URL || "https://food-canvas.vercel.app"}/api/auth/callback/google`,
+      redirectURI: `${process.env.BETTER_AUTH_URL || "https://food-canvas-server.vercel.app"}/api/auth/callback/google`,
     },
   },
 

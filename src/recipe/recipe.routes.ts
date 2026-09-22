@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { RecipeController } from "./recipe.controller.js";
+import { RecommendationController } from "./recommendation.controller.js";
 
 const router = Router();
 
 // Recipe Routes -> /api/recipes
+router.get("/recommendations", RecommendationController.getRecommendations);
 router.get("/recipes", RecipeController.getRecipes);
 
 // single recipe route

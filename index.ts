@@ -76,17 +76,9 @@ const upload = multer({
 });
 
 // ============================================
-// CORS
-// ============================================
-
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (same-origin, mobile apps, curl)
-      if (!origin) return callback(null, true);
-      if (allowedClientOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error(`CORS: Origin '${origin}' not allowed`));
-    },
+    origin: allowedClientOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
@@ -95,6 +87,7 @@ app.use(
       "Cookie",
       "Origin",
       "X-Requested-With",
+      "Accept",
     ],
     exposedHeaders: ["Set-Cookie"],
   })
@@ -105,7 +98,12 @@ app.use(
 // IMPORTANT: Keep this BEFORE express.json()
 // ============================================
 
-app.all("/api/auth/*splat", toNodeHandler(auth));
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/auth")) {
+    return toNodeHandler(auth)(req, res, next);
+  }
+  next();
+});
 
 // ============================================
 // BODY PARSERS
