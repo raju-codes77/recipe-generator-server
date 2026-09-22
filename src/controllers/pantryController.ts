@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { auth } from "../lib/auth.js";
 import { fromNodeHeaders } from "better-auth/node";
 import { trackAiUsage } from "../services/ai-usage.service.js";
+import { requireCommunityUser } from "../community/community.auth.js";
 
 const generateSchema = z.object({
   ingredients: z.array(z.string()).min(1),
@@ -15,6 +16,8 @@ const generateSchema = z.object({
   servings: z.string(),
   selectedOptions: z.array(z.string()).default([]),
 });
+
+const GENERATED_RECIPE_IMAGE = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1200&q=80";
 
 export async function generate(req: Request, res: Response) {
   try {
@@ -139,5 +142,93 @@ export async function refine(req: Request, res: Response) {
   } catch (error: any) {
     console.error("refine error:", error);
     return res.status(400).json({ message: error?.message || "Failed to refine recipe" });
+  }
+}
+
+function parseNumber(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value.replace(/[^0-9]/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+export async function saveGeneratedRecipe(req: Request, res: Response) {
+  try {
+    const user = await requireCommunityUser(req);
+    const recipeId = z.object({ id: z.string().min(1) }).parse(req.body).id;
+    const generated = await prisma.pantryRecipe.findUnique({ where: { id: recipeId } });
+
+    if (!generated) {
+      return res.status(404).json({ message: "Generated recipe not found" });
+    }
+
+    const recipe = await prisma.$transaction(async (tx) => {
+      const existing = await tx.recipe.findUnique({ where: { mealId: generated.id } });
+      const persisted = existing ?? await tx.recipe.create({
+        data: {
+          mealId: generated.id,
+          title: generated.title,
+          category: generated.mealType,
+          cuisine: generated.cuisine,
+          time: parseNumber(generated.time, 30),
+          calories: parseNumber(generated.kcal, 400),
+          image: generated.image,
+          instructions: (generated.instructions as string[]).join("\n"),
+          userId: user.id,
+          ingredients: {
+            create: (generated.ingredients as string[]).map((ingredient) => ({ name: ingredient })),
+          },
+        },
+        include: { ingredients: true },
+      });
+
+      if (persisted.userId !== user.id) {
+        throw Object.assign(new Error("You cannot save this recipe"), { statusCode: 403 });
+      }
+
+      await tx.favorite.upsert({
+        where: { userId_recipeId: { userId: user.id, recipeId: persisted.id } },
+        update: {},
+        create: { userId: user.id, recipeId: persisted.id },
+      });
+
+      const communityPost = await tx.communityPost.findFirst({
+        where: { authorId: user.id, recipeId: persisted.id },
+        select: { id: true },
+      });
+      const post = communityPost ?? await tx.communityPost.create({
+        data: {
+          authorId: user.id,
+          caption: generated.description || generated.title,
+          imageUrl: generated.image || GENERATED_RECIPE_IMAGE,
+          recipeId: persisted.id,
+          tags: ["AI Generated", "Ingredient Rescue"],
+        },
+        select: { id: true },
+      });
+
+      await tx.communitySavedPost.upsert({
+        where: { postId_userId: { postId: post.id, userId: user.id } },
+        update: {},
+        create: { postId: post.id, userId: user.id },
+      });
+
+      return { persisted, communityPostId: post.id };
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Recipe saved to your profile",
+      recipe: recipe.persisted,
+      communityPostId: recipe.communityPostId,
+    });
+  } catch (error: any) {
+    if (error?.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
+
+    console.error("Save generated recipe error:", error);
+    return res.status(400).json({
+      success: false,
+      message: error?.message || "Failed to save recipe",
+    });
   }
 }

@@ -21,6 +21,18 @@ async function usersById(ids: string[]) {
   return new Map(users.map((user) => [user.id, user]));
 }
 
+interface CommunityCommentView {
+  id: string;
+  userId: string;
+  parentId: string | null;
+  userName: string;
+  userAvatar: string;
+  content: string;
+  createdAt: string;
+  likesCount: number;
+  replies: CommunityCommentView[];
+}
+
 function parseRecipeSteps(instructions: string | null): Array<{ stepNumber: number; instruction: string; durationMinutes?: number; tip?: string }> {
   if (!instructions) return [];
   try {
@@ -70,6 +82,8 @@ export class CommunityService {
       authorId?: string;
       postIds?: string[];
       excludePinned?: boolean;
+      pinnedOnly?: boolean;
+      orderPinnedFirst?: boolean;
       take?: number;
       skip?: number;
       filter?: "all" | "trending" | "following" | "quick" | "wellness" | "ai_sparks" | "saved" | "liked";
@@ -151,9 +165,12 @@ export class CommunityService {
         ...(options.authorId ? { authorId: options.authorId } : {}),
         ...(options.postIds ? { id: { in: options.postIds } } : {}),
         ...(options.excludePinned ? { isPinned: false } : {}),
+        ...(options.pinnedOnly ? { isPinned: true } : {}),
         ...(filteredPostIds ? { id: { in: filteredPostIds } } : {}),
       },
-      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+      orderBy: options.orderPinnedFirst === false
+        ? { createdAt: "desc" }
+        : [{ isPinned: "desc" }, { createdAt: "desc" }],
       take: filterOrder ? filteredPostIds?.length : take,
       skip: filterOrder ? 0 : skip,
     });
@@ -425,8 +442,9 @@ export class CommunityService {
 
     const take = Math.min(Math.max(options.take ?? 6, 1), 20);
     const skip = Math.max(options.skip ?? 0, 0);
-    const [pagePosts, stories, profileStatsRows] = await Promise.all([
-      this.listPosts(viewerId, { authorId: userId, take: take + 1, skip }),
+    const [pagePosts, pinnedPosts, stories, profileStatsRows] = await Promise.all([
+      this.listPosts(viewerId, { authorId: userId, take: take + 1, skip, orderPinnedFirst: false }),
+      this.listPosts(viewerId, { authorId: userId, pinnedOnly: true, take: 1, skip: 0 }),
       this.listStories(userId, viewerId),
       prisma.$queryRaw<Array<{
         postsTotal: number;
@@ -485,6 +503,7 @@ export class CommunityService {
         recipesCount: profileStats.recipesTotal,
       },
       posts,
+      pinnedPost: pinnedPosts[0] ?? null,
       postsTotal: profileStats.postsTotal,
       likesTotal: viewerId === userId ? profileStats.likesTotal : undefined,
       hasMorePosts,
@@ -509,8 +528,6 @@ export class CommunityService {
       ? await prisma.communityComment.findMany({
           where: { postId },
           orderBy: { createdAt: "asc" },
-          take: commentsTake,
-          skip: commentsSkip,
         })
       : [];
     const reviews = reviewsTake
@@ -523,19 +540,32 @@ export class CommunityService {
       : [];
     const users = await usersById([...comments.map((comment) => comment.userId), ...reviews.map((review) => review.userId)]);
 
+    const commentsByParent = new Map<string | null, typeof comments>();
+    comments.forEach((comment) => {
+      const siblings = commentsByParent.get(comment.parentId) || [];
+      siblings.push(comment);
+      commentsByParent.set(comment.parentId, siblings);
+    });
+
+    const formatComment = (comment: (typeof comments)[number]): CommunityCommentView => {
+      const user = users.get(comment.userId);
+      return {
+        id: comment.id,
+        userId: comment.userId,
+        parentId: comment.parentId,
+        userName: user?.name || "Community Cook",
+        userAvatar: user?.image || "",
+        content: comment.content,
+        createdAt: timeAgo(comment.createdAt),
+        likesCount: 0,
+        replies: (commentsByParent.get(comment.id) || []).map(formatComment),
+      };
+    };
+
+    const visibleRootComments = (commentsByParent.get(null) || []).slice(commentsSkip, commentsSkip + commentsTake);
+
     return {
-      comments: comments.map((comment) => {
-        const user = users.get(comment.userId);
-        return {
-          id: comment.id,
-          userId: comment.userId,
-          userName: user?.name || "Community Cook",
-          userAvatar: user?.image || "",
-          content: comment.content,
-          createdAt: timeAgo(comment.createdAt),
-          likesCount: 0,
-        };
-      }),
+      comments: visibleRootComments.map(formatComment),
       reviews: reviews.map((review) => {
         const user = users.get(review.userId);
         return {
@@ -719,6 +749,15 @@ export class CommunityService {
   }
 
   async addComment(userId: string, postId: string, content: string, parentId?: string) {
+    if (parentId) {
+      const parent = await prisma.communityComment.findUnique({
+        where: { id: parentId },
+        select: { postId: true },
+      });
+      if (!parent || parent.postId !== postId) {
+        throw Object.assign(new Error("Parent comment not found"), { statusCode: 404 });
+      }
+    }
     const comment = await prisma.communityComment.create({ data: { userId, postId, content, parentId } });
     await this.notifyPostOwner(postId, userId, "COMMENT", "commented on your Community post");
     return comment;
@@ -733,7 +772,25 @@ export class CommunityService {
   async deleteComment(userId: string, commentId: string) {
     const comment = await prisma.communityComment.findUnique({ where: { id: commentId } });
     if (!comment || comment.userId !== userId) throw Object.assign(new Error("Comment not found"), { statusCode: 404 });
-    await prisma.communityComment.delete({ where: { id: commentId } });
+
+    const thread = await prisma.communityComment.findMany({
+      where: { postId: comment.postId },
+      select: { id: true, parentId: true },
+    });
+    const idsToDelete = new Set([commentId]);
+    let foundNewChild = true;
+    while (foundNewChild) {
+      foundNewChild = false;
+      thread.forEach((item) => {
+        if (item.parentId && idsToDelete.has(item.parentId) && !idsToDelete.has(item.id)) {
+          idsToDelete.add(item.id);
+          foundNewChild = true;
+        }
+      });
+    }
+
+    await prisma.communityComment.deleteMany({ where: { id: { in: [...idsToDelete] } } });
+    return { deletedCount: idsToDelete.size };
   }
 
   async saveReview(userId: string, postId: string, data: Record<string, unknown>) {
@@ -833,6 +890,12 @@ export class CommunityService {
     }));
   }
 
+  async getPost(viewerId: string | null | undefined, postId: string) {
+    const posts = await this.listPosts(viewerId, { postIds: [postId], take: 1 });
+    if (posts.length === 0) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
+    return posts[0];
+  }
+
   createCollection(userId: string, name: string, description?: string) {
     void description;
     return prisma.collection.create({ data: { userId, name } });
@@ -916,9 +979,13 @@ export class CommunityService {
 
   async createStory(userId: string, imageUrl: string, caption: string, tag?: string) {
     await moderateCommunityStory(imageUrl, caption);
-    return prisma.communityStory.create({
+    const createdStory = await prisma.communityStory.create({
       data: { authorId: userId, imageUrl, caption, tag, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
     });
+
+    const formattedStory = (await this.listStories(userId)).find((story) => story.id === createdStory.id);
+    if (!formattedStory) throw new Error("Unable to format the created story");
+    return formattedStory;
   }
 
   async deleteStory(userId: string, storyId: string) {
@@ -975,6 +1042,13 @@ export class CommunityService {
     `;
 
     return rows.map(({ tag }) => `#${tag}`);
+  }
+
+  async getStory(storyId: string, viewerId?: string | null) {
+    const stories = await this.listStories(undefined, viewerId);
+    const story = stories.find((item) => item.id === storyId);
+    if (!story) throw Object.assign(new Error("Story not found or expired"), { statusCode: 404 });
+    return story;
   }
 
   async getFeedCounts(userId: string) {
@@ -1121,8 +1195,27 @@ export class CommunityService {
       if (!latestByUser.has(otherUserId)) latestByUser.set(otherUserId, message);
     }
 
-    return users.map((user) => {
+    const contactRows = await Promise.all(users.map(async (user) => {
         const latest = latestByUser.get(user.id);
+        const conversation = await prisma.communityConversation.findUnique({
+          where: { pairKey: [userId, user.id].sort().join(":") },
+          select: { id: true },
+        });
+        const membership = conversation
+          ? await prisma.communityConversationMember.findUnique({
+              where: { conversationId_userId: { conversationId: conversation.id, userId } },
+              select: { lastReadAt: true },
+            })
+          : null;
+        const unreadCount = conversation
+          ? await prisma.communityMessage.count({
+              where: {
+                conversationId: conversation.id,
+                recipientId: userId,
+                ...(membership?.lastReadAt ? { createdAt: { gt: membership.lastReadAt } } : {}),
+              },
+            })
+          : 0;
         return {
           id: user.id,
           name: user.name,
@@ -1131,8 +1224,18 @@ export class CommunityService {
           online: false,
           lastMessage: latest?.text || "Start a cooking conversation",
           lastMessageTime: latest ? timeAgo(latest.createdAt) : "",
+          lastMessageAt: latest?.createdAt.toISOString() || null,
+          unreadCount,
         };
-      });
+      }));
+    return contactRows.sort((left, right) => {
+      if (left.lastMessageAt && right.lastMessageAt) {
+        return new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime();
+      }
+      if (right.lastMessageAt) return 1;
+      if (left.lastMessageAt) return -1;
+      return left.name.localeCompare(right.name);
+    });
   }
 
   async listMessages(userId: string, otherUserId: string, options: { take?: number; skip?: number } = {}) {
@@ -1149,15 +1252,56 @@ export class CommunityService {
       skip,
     });
     const hasMore = result.length > take;
-    const messages = result
-      .slice(0, take)
-      .reverse()
-      .map((message) => ({ ...message, timestamp: timeAgo(message.createdAt) }));
+    const messages = result.slice(0, take).reverse();
+    const postIds = messages.flatMap((message) => message.attachedPostId ? [message.attachedPostId] : []);
+    const storyIds = messages.flatMap((message) => message.attachedStoryId ? [message.attachedStoryId] : []);
+    const posts = postIds.length
+      ? await prisma.communityPost.findMany({ where: { id: { in: postIds } }, select: { id: true, imageUrl: true, caption: true } })
+      : [];
+    const stories = storyIds.length
+      ? await prisma.communityStory.findMany({ where: { id: { in: storyIds } }, select: { id: true, imageUrl: true, caption: true } })
+      : [];
+    const postsById = new Map(posts.map((post) => [post.id, post]));
+    const storiesById = new Map(stories.map((story) => [story.id, story]));
+    const formattedMessages = messages.map((message) => ({
+      ...message,
+      timestamp: timeAgo(message.createdAt),
+      attachedPost: message.attachedPostId ? postsById.get(message.attachedPostId) || null : null,
+      attachedStory: message.attachedStoryId ? storiesById.get(message.attachedStoryId) || null : null,
+    }));
 
-    return { messages, hasMore };
+    await prisma.communityConversationMember.updateMany({
+      where: { conversationId: conversation.id, userId },
+      data: { lastReadAt: new Date() },
+    });
+
+    return { messages: formattedMessages, hasMore };
   }
 
-  async sendMessage(userId: string, recipientId: string, text: string, attachedPostId?: string) {
+  async markConversationRead(userId: string, otherUserId: string) {
+    const pairKey = [userId, otherUserId].sort().join(":");
+    const conversation = await prisma.communityConversation.findUnique({ where: { pairKey }, select: { id: true } });
+    if (!conversation) return;
+    await prisma.communityConversationMember.updateMany({
+      where: { conversationId: conversation.id, userId },
+      data: { lastReadAt: new Date() },
+    });
+  }
+
+  async sendMessage(userId: string, recipientId: string, text: string, attachedPostId?: string, attachedStoryId?: string) {
+    if (userId === recipientId) throw Object.assign(new Error("You cannot message yourself"), { statusCode: 400 });
+    const normalizedText = text.trim();
+    if (!normalizedText && !attachedPostId && !attachedStoryId) {
+      throw Object.assign(new Error("Message or attachment is required"), { statusCode: 400 });
+    }
+    if (attachedPostId) {
+      const post = await prisma.communityPost.findUnique({ where: { id: attachedPostId }, select: { id: true } });
+      if (!post) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
+    }
+    if (attachedStoryId) {
+      const story = await prisma.communityStory.findUnique({ where: { id: attachedStoryId }, select: { id: true } });
+      if (!story) throw Object.assign(new Error("Story not found"), { statusCode: 404 });
+    }
     const pairKey = [userId, recipientId].sort().join(":");
     const conversation = await prisma.communityConversation.upsert({
       where: { pairKey },
@@ -1172,16 +1316,16 @@ export class CommunityService {
       skipDuplicates: true,
     });
     const message = await prisma.communityMessage.create({
-      data: { conversationId: conversation.id, senderId: userId, recipientId, text, attachedPostId },
+      data: { conversationId: conversation.id, senderId: userId, recipientId, text: normalizedText, attachedPostId, attachedStoryId },
     });
-    await prisma.communityNotification.create({
-      data: {
-        userId: recipientId,
-        actorId: userId,
-        type: "MESSAGE",
-        text: "sent you a direct message",
-        targetPostId: attachedPostId,
-      },
+    await NotificationService.createNotification({
+      userId: recipientId,
+      actorId: userId,
+      type: "MESSAGE",
+      title: "New message",
+      message: "sent you a direct message",
+      actionUrl: `/community/messages?userId=${encodeURIComponent(userId)}`,
+      relatedPostId: attachedPostId,
     });
     return message;
   }

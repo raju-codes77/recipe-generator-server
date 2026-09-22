@@ -39,6 +39,11 @@ export const communityController = {
     res.json({ chefs: await communityService.listSuggestedChefs(user?.id) });
   }),
 
+  getPost: handle(async (req, res) => {
+    const user = await getOptionalCommunityUser(req);
+    res.json({ post: await communityService.getPost(user?.id, param(req.params.postId)) });
+  }),
+
   listSuggestedTags: handle(async (req, res) => {
     const search = typeof req.query.search === "string" ? req.query.search : "";
     res.json({ tags: await communityService.listSuggestedTags(search) });
@@ -134,9 +139,9 @@ export const communityController = {
 
   deleteComment: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
-    await communityService.deleteComment(user.id, param(req.params.commentId));
+    const result = await communityService.deleteComment(user.id, param(req.params.commentId));
 
-    res.status(204).end();
+    res.json(result);
   }),
 
   saveReview: handle(async (req, res) => {
@@ -264,6 +269,11 @@ export const communityController = {
     res.json({ viewers: await communityService.listStoryViewers(user.id, param(req.params.storyId)) });
   }),
 
+  getStory: handle(async (req, res) => {
+    const user = await getOptionalCommunityUser(req);
+    res.json({ story: await communityService.getStory(param(req.params.storyId), user?.id) });
+  }),
+
   reactToStory: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
     res.json({ active: await communityService.reactToStory(user.id, param(req.params.storyId)) });
@@ -307,14 +317,21 @@ export const communityController = {
     });
   }),
 
+  markMessagesRead: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    await communityService.markConversationRead(user.id, param(req.params.userId));
+    res.json({ success: true });
+  }),
+
   sendMessage: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
 
     const message = await communityService.sendMessage(
       user.id,
       param(req.params.userId),
-      parseRequiredText(req.body.text, "Message"),
-      req.body.attachedPostId
+      typeof req.body.text === "string" ? req.body.text.trim() : "",
+      req.body.attachedPostId,
+      req.body.attachedStoryId
     );
 
     res.status(201).json({ message });

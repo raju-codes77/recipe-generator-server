@@ -4,6 +4,7 @@ export type NotificationType =
   | "POST_LIKE"
   | "POST_COMMENT"
   | "FOLLOW"
+  | "MESSAGE"
   | "MEAL_ANALYSIS_SUCCESS"
   | "MEAL_TRACK_SUCCESS"
   | "MEAL_PLAN_SUCCESS"
