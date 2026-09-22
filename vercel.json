@@ -11,5 +11,11 @@
       "src": "/(.*)",
       "dest": "index.ts"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/inactive-users",
+      "schedule": "0 0 * * *"
+    }
   ]
 }

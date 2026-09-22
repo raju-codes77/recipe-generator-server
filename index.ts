@@ -48,7 +48,7 @@ import wellnessRouter from "./src/routes/wellness.routes.js";
 import { aiUsageRouter } from "./src/routes/ai-usage.routes.js";
 import aiNutritionistRoutes from "./routes/ai-nutritionist.routes.js";
 import notificationRoutes from "./src/routes/notification.routes.js";
-
+import cronRoutes from "./src/routes/cron.routes.js";
 
 // old human nutritionist imports removed
 const app = express();
@@ -100,7 +100,7 @@ app.use(
 
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/auth")) {
-    return toNodeHandler(auth)(req, res, next);
+    return toNodeHandler(auth)(req, res);
   }
   next();
 });
@@ -122,6 +122,19 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
     }
     // Attach user id for downstream use
     (req as any).user = session.user;
+
+    // Record activity for meaningful actions (skip generic page loads/GETs and internal/admin routes)
+    const ignoredPaths = ["/api/auth", "/api/cron", "/api/admin", "/api/dashboard", "/api/notifications"];
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+      const isMeaningful = !ignoredPaths.some(p => req.originalUrl.startsWith(p));
+      if (isMeaningful) {
+        // Use the imported trackActivity function? No, we imported trackActivity but we can just use the underlying service
+        import("./src/lib/activity.js").then(({ recordUserActivity }) => {
+          recordUserActivity(session.user.id).catch(err => console.error("Activity track error:", err));
+        }).catch(console.error);
+      }
+    }
+
     next();
   } catch (err) {
     return res.status(401).json({ success: false, message: "Unauthorized." });
@@ -137,6 +150,7 @@ app.use("/api/wellness-reminders", wellnessRouter);
 app.use("/api/ai-usage", aiUsageRouter);
 app.use("/api/ai-nutritionist", aiNutritionistRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/cron", cronRoutes);
 
 
 // ============================================

@@ -40,6 +40,11 @@ model User {
   wellnessPreference    WellnessPreference?
   aiUsageEvents         AiUsageEvent[]
   notifications         Notification[]
+
+  // Email Engagement & User Inactivity Tracking
+  lastActivityAt          DateTime @default(now())
+  welcomeEmailSent        Boolean  @default(false)
+  inactivityReminderStage Int      @default(0) // 0 = none, 1 = 3-day sent, 2 = 7-day sent
 }
 
 model ChatMessage {
