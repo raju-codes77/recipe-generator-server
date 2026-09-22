@@ -84,6 +84,7 @@ export class CommunityService {
       excludePinned?: boolean;
       pinnedOnly?: boolean;
       orderPinnedFirst?: boolean;
+      recipeOnly?: boolean;
       take?: number;
       skip?: number;
       filter?: "all" | "trending" | "following" | "quick" | "wellness" | "ai_sparks" | "saved" | "liked";
@@ -166,6 +167,7 @@ export class CommunityService {
         ...(options.postIds ? { id: { in: options.postIds } } : {}),
         ...(options.excludePinned ? { isPinned: false } : {}),
         ...(options.pinnedOnly ? { isPinned: true } : {}),
+        ...(options.recipeOnly ? { recipeId: { not: null }, sharedFromId: null } : {}),
         ...(filteredPostIds ? { id: { in: filteredPostIds } } : {}),
       },
       orderBy: options.orderPinnedFirst === false
@@ -435,7 +437,7 @@ export class CommunityService {
   async getPublicProfile(
     userId: string,
     viewerId?: string | null,
-    options: { take?: number; skip?: number } = {},
+    options: { take?: number; skip?: number; recipeOnly?: boolean } = {},
   ) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw Object.assign(new Error("Community user not found"), { statusCode: 404 });
@@ -443,7 +445,7 @@ export class CommunityService {
     const take = Math.min(Math.max(options.take ?? 6, 1), 20);
     const skip = Math.max(options.skip ?? 0, 0);
     const [pagePosts, pinnedPosts, stories, profileStatsRows] = await Promise.all([
-      this.listPosts(viewerId, { authorId: userId, take: take + 1, skip, orderPinnedFirst: false }),
+      this.listPosts(viewerId, { authorId: userId, take: take + 1, skip, orderPinnedFirst: false, recipeOnly: options.recipeOnly }),
       this.listPosts(viewerId, { authorId: userId, pinnedOnly: true, take: 1, skip: 0 }),
       this.listStories(userId, viewerId),
       prisma.$queryRaw<Array<{
@@ -585,6 +587,35 @@ export class CommunityService {
         };
       }),
     };
+  }
+
+  async listPostLikers(postId: string, viewerId: string) {
+    const post = await prisma.communityPost.findUnique({
+      where: { id: postId },
+      select: { authorId: true },
+    });
+    if (!post) throw Object.assign(new Error("Post not found"), { statusCode: 404 });
+    if (post.authorId !== viewerId) {
+      throw Object.assign(new Error("Only the post owner can view its likers"), { statusCode: 403 });
+    }
+
+    const reactions = await prisma.communityReaction.findMany({
+      where: { postId, type: "LIKE" },
+      orderBy: { createdAt: "desc" },
+      select: { userId: true, createdAt: true },
+    });
+    const users = await usersById(reactions.map((reaction) => reaction.userId));
+
+    return reactions.map((reaction) => {
+      const user = users.get(reaction.userId);
+      return {
+        id: reaction.userId,
+        name: user?.name || "Community Cook",
+        username: user?.email?.split("@")[0] || "community_cook",
+        avatar: user?.image || "",
+        reactedAt: reaction.createdAt,
+      };
+    });
   }
 
   async createPost(user: AuthenticatedCommunityUser, input: CreateCommunityPostInput) {

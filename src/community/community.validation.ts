@@ -11,8 +11,8 @@ export function parsePostInput(body: unknown): CreateCommunityPostInput {
   const caption = text(value.caption, 3000);
   const imageUrl = text(value.imageUrl, 2000);
 
-  if (!caption) {
-    throw Object.assign(new Error("Caption is required"), { statusCode: 400 });
+  if (!caption && imageUrl === TEXT_ONLY_POST_IMAGE) {
+    throw Object.assign(new Error("Caption is required for text-only posts"), { statusCode: 400 });
   }
 
   if (!imageUrl) {

@@ -69,6 +69,11 @@ export const communityController = {
     });
   }),
 
+  listPostLikers: handle(async (req, res) => {
+    const user = await requireCommunityUser(req);
+    res.json({ users: await communityService.listPostLikers(param(req.params.postId), user.id) });
+  }),
+
   createPost: handle(async (req, res) => {
     const user = await requireCommunityUser(req);
 
@@ -189,10 +194,12 @@ export const communityController = {
     const viewer = await getOptionalCommunityUser(req);
     const rawTake = Number(req.query.take);
     const rawSkip = Number(req.query.skip);
+    const recipeOnly = req.query.recipeOnly === "true";
     res.json({
       profile: await communityService.getPublicProfile(param(req.params.userId), viewer?.id, {
         take: Number.isFinite(rawTake) ? rawTake : undefined,
         skip: Number.isFinite(rawSkip) ? rawSkip : undefined,
+        recipeOnly,
       }),
     });
   }),
