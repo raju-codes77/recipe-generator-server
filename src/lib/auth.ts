@@ -66,5 +66,23 @@ export const auth = betterAuth({
       },
     },
   },
+
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          // Asynchronously trigger welcome email after successful DB creation
+          import("../services/emailService.js")
+            .then(({ sendWelcomeEmail }) => {
+              if (user.email && user.name) {
+                // Background execution, does not block auth flow
+                sendWelcomeEmail(user.email, user.name).catch(console.error);
+              }
+            })
+            .catch(console.error);
+        },
+      },
+    },
+  },
 });
 
