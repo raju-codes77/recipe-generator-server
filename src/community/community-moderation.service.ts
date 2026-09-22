@@ -167,7 +167,8 @@ function rejectResult(kind: ModerationKind, result: ModerationResult): never {
 export async function moderateCommunityPost(input: CreateCommunityPostInput): Promise<void> {
   if (input.imageUrl === TEXT_ONLY_POST_IMAGE) return;
   const result = await moderate("post", input.imageUrl, input.caption, input.recipe);
-  if (!result.approved) rejectResult("post", result);
+  if (!result.imageIsFood) rejectResult("post", result);
+  if (input.caption.trim() && !result.approved) rejectResult("post", result);
 }
 
 export async function moderateCommunityStory(imageUrl: string, caption: string): Promise<void> {
