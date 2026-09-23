@@ -72,7 +72,7 @@ export class CommunityService {
       title: "Community Update",
       message: text,
       relatedPostId: postId,
-      actionUrl: `/community` // Fallback to community feed since there is no standalone post route
+      actionUrl: `/community/recipe/${encodeURIComponent(postId)}?comments=1`
     });
   }
 
