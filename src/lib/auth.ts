@@ -13,9 +13,15 @@ const configuredClientOrigins = [
   .filter(Boolean);
 
 export const auth = betterAuth({
-  // Production: https://food-canvas-server.vercel.app
-  // Local: http://localhost:5000
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:5000",
+  // In production: BETTER_AUTH_BASE_URL must be the FRONTEND URL (https://food-canvas.vercel.app)
+  // This ensures the OAuth callback URI is generated as a frontend URL that goes through the proxy,
+  // so state/PKCE cookies remain on the same domain (food-canvas.vercel.app) throughout the entire flow.
+  //
+  // WRONG: setting this to the backend URL causes the callback to bypass the proxy,
+  //        breaking cookie consistency and producing state_mismatch.
+  //
+  // Local dev: http://localhost:5000 (backend handles auth directly, no cross-domain)
+  baseURL: process.env.BETTER_AUTH_BASE_URL || process.env.BETTER_AUTH_URL || "http://localhost:5000",
 
   trustedOrigins: Array.from(
     new Set([
