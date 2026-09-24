@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma.js";
 
 export const RecipeService = {
   // Find Recipes
-  async findRecipes(whereClause: any, orderByObj: any, take: number, skip: number) {
+  async findRecipes(whereClause: any, orderByObj: any, take?: number, skip?: number) {
     return await prisma.recipe.findMany({
       where: whereClause,
       orderBy: orderByObj,
