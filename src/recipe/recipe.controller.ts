@@ -7,6 +7,7 @@ export const RecipeController = {
   async getRecipes(req: Request, res: Response) {
     try {
       const {
+        limit,
         search,
         category,
         cuisine,
@@ -179,13 +180,16 @@ export const RecipeController = {
         [sortByField]: sortOrder,
       };
 
-      // Fetch Recipes (Without Pagination - Using existing findRecipes method by passing undefined/0 or updating service call)
+      const parsedLimit = Number(limit);
+      const take = Number.isInteger(parsedLimit) && parsedLimit > 0
+        ? Math.min(parsedLimit, 100)
+        : undefined;
 
       const recipes = await RecipeService.findRecipes(
         whereClause,
         orderByObj,
-        undefined as any,
-        undefined as any
+        take,
+        undefined
       );
 
       return res.status(200).json({

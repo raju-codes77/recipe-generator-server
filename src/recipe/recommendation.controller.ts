@@ -18,25 +18,36 @@ export const RecommendationController = {
       const favoritedRecipeIds = new Set<string>();
 
       if (user?.id) {
-        // 1. Fetch user interactions
-        const favorites = await prisma.favorite.findMany({
-          where: { userId: user.id },
-          include: { recipe: true },
-        });
-        
-        favorites.forEach(f => favoritedRecipeIds.add(f.recipeId));
+        // Fetch independent preference sources concurrently and only load fields used by ranking.
+        const [favorites, collections, tasteProfile] = await Promise.all([
+          prisma.favorite.findMany({
+            where: { userId: user.id },
+            select: {
+              recipeId: true,
+              recipe: { select: { cuisine: true, category: true } },
+            },
+          }),
+          prisma.collection.findMany({
+            where: { userId: user.id },
+            select: {
+              recipes: {
+                select: {
+                  recipeId: true,
+                  recipe: { select: { cuisine: true, category: true } },
+                },
+              },
+            },
+          }),
+          prisma.tasteProfile.findUnique({
+            where: { userId: user.id },
+            select: { preferredCuisines: true },
+          }),
+        ]);
 
-        const collections = await prisma.collection.findMany({
-          where: { userId: user.id },
-          include: { recipes: { include: { recipe: true } } },
-        });
+        favorites.forEach(f => favoritedRecipeIds.add(f.recipeId));
 
         collections.forEach(c => {
           c.recipes.forEach(cr => favoritedRecipeIds.add(cr.recipeId));
-        });
-
-        const tasteProfile = await prisma.tasteProfile.findUnique({
-          where: { userId: user.id },
         });
 
         // 2. Build frequency maps
@@ -105,8 +116,15 @@ export const RecommendationController = {
         where: {
           id: { notIn: Array.from(favoritedRecipeIds) },
         },
-        include: {
-          user: { select: { id: true, name: true, image: true } },
+        select: {
+          id: true,
+          title: true,
+          image: true,
+          rating: true,
+          time: true,
+          calories: true,
+          cuisine: true,
+          category: true,
         },
         take: 100, // fetch up to 100 candidates to score
         orderBy: { rating: 'desc' }
